@@ -1,0 +1,1479 @@
+---
+title: PRD Aplikasi Koperasi Simpan Pinjam
+version: 1.2
+updated_at: 2026-07-29
+backend: Laravel 13 / PHP 8.5 / Service Layer / Eloquent ORM
+frontend: Inertia.js v3 / React 19 / TypeScript / Tailwind CSS
+database: PostgreSQL 18
+project_path: /home/naval/www/koperasi.test
+locale: id-ID
+timezone: Asia/Jakarta
+---
+
+# PRD Aplikasi Koperasi Simpan Pinjam
+
+<callout icon="🎯">
+	Dokumen implementasi untuk membangun MVP aplikasi koperasi simpan pinjam menggunakan **Laravel 13**, **Inertia.js v3**, **React 19**, dan **PostgreSQL 18** dengan **Service Layer**.
+</callout>
+## 1. Ringkasan produk
+Aplikasi ini membantu pengurus koperasi mengelola anggota, simpanan, pengajuan pinjaman, persetujuan, pencairan, angsuran, dan laporan keuangan operasional dalam satu sistem. Anggota dapat melihat saldo simpanan, mengajukan pinjaman, memantau status pengajuan, dan melihat jadwal serta riwayat angsuran.
+### Konfigurasi proyek
+<table header-row="true">
+<tr>
+<td>Item</td>
+<td>Nilai</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td>Laravel 13 — PHP 8.5</td>
+</tr>
+<tr>
+<td>Frontend</td>
+<td>Inertia.js v3 + React 19 + TypeScript + Tailwind CSS</td>
+</tr>
+<tr>
+<td>Database</td>
+<td>PostgreSQL 18</td>
+</tr>
+<tr>
+<td>Web server lokal/produksi</td>
+<td>Nginx sebagai reverse proxy ke PHP-FPM 8.5</td>
+</tr>
+<tr>
+<td>Deployment</td>
+<td>CloudPanel — [kpri.mtsn3padang.sch.id](https://kpri.mtsn3padang.sch.id)</td>
+</tr>
+<tr>
+<td>Domain lokal</td>
+<td>`koperasi.test`</td>
+</tr>
+<tr>
+<td>Folder proyek lokal</td>
+<td>`/home/naval/www/koperasi.test`</td>
+</tr>
+<tr>
+<td>Target awal</td>
+<td>Web responsif, desktop dan mobile</td>
+</tr>
+<tr>
+<td>Bahasa antarmuka</td>
+<td>Bahasa Indonesia</td>
+</tr>
+<tr>
+<td>Zona waktu</td>
+<td>Asia/Jakarta</td>
+</tr>
+<tr>
+<td>Mata uang</td>
+<td>IDR</td>
+</tr>
+</table>
+<callout icon="🔐">
+	Simpan kredensial PostgreSQL, `APP_KEY`, dan rahasia lain hanya di environment server. Jangan menaruh secret di kode frontend maupun repository.
+</callout>
+## 2. Tujuan
+- Mengurangi pencatatan manual dan duplikasi data.
+- Memberikan transparansi saldo dan kewajiban kepada anggota.
+- Membuat proses pengajuan dan persetujuan pinjaman dapat diaudit.
+- Menghitung jadwal angsuran secara konsisten.
+- Menyediakan laporan operasional yang mudah difilter dan diekspor.
+- Menjaga akses data berdasarkan peran pengguna.
+## 3. Ruang lingkup MVP
+### Termasuk
+- Autentikasi pengguna.
+- Manajemen profil dan status anggota.
+- Pengelolaan jenis simpanan: pokok, wajib, dan sukarela.
+- Pencatatan transaksi simpanan masuk dan penarikan simpanan sukarela.
+- Pengajuan pinjaman oleh anggota.
+- Review, persetujuan, penolakan, dan pencairan pinjaman oleh pengurus.
+- Perhitungan tenor, bunga, angsuran, dan sisa kewajiban.
+- Pencatatan pembayaran angsuran.
+- Dashboard anggota dan pengurus.
+- Riwayat aktivitas/audit log.
+- Jurnal otomatis untuk transaksi finansial yang sudah `posted`.
+- Buku besar dan neraca saldo berbasis jurnal berpasangan.
+- Perhitungan serta distribusi Sisa Hasil Usaha (SHU) yang dapat diaudit.
+- Laporan anggota, pinjaman, simpanan, dan laporan keuangan.
+- Ekspor CSV sesuai filter aktif.
+### Di luar MVP
+- Integrasi payment gateway dan virtual account.
+- Integrasi ke aplikasi akuntansi eksternal dan standar akuntansi lanjutan di luar kebutuhan operasional koperasi.
+- Tanda tangan elektronik tersertifikasi.
+- Integrasi SLIK/credit scoring eksternal.
+- Aplikasi mobile native.
+- Multi-koperasi dalam satu deployment.
+- Denda atau restrukturisasi kompleks yang otomatis.
+## 4. Peran pengguna
+### Anggota
+- Melihat profil dan nomor anggota.
+- Melihat saldo serta riwayat simpanan.
+- Membuat dan memantau pengajuan pinjaman.
+- Melihat kontrak, jadwal, dan riwayat angsuran milik sendiri.
+- Mengunduh bukti transaksi.
+### Petugas
+- Mendaftarkan dan memperbarui data anggota.
+- Mencatat setoran, penarikan, pencairan, dan angsuran.
+- Memeriksa kelengkapan pengajuan pinjaman.
+- Melihat laporan operasional sesuai wewenang.
+### Manajer/Approver
+- Menyetujui atau menolak pengajuan pinjaman.
+- Menentukan nilai yang disetujui, tenor, bunga, dan catatan keputusan.
+- Memantau pinjaman aktif, jatuh tempo, dan tunggakan.
+### Admin
+- Mengelola pengguna, peran, produk simpanan, dan produk pinjaman.
+- Mengubah parameter koperasi.
+- Mengakses audit log dan seluruh laporan.
+## 5. User stories dan acceptance criteria
+### Keanggotaan
+- Sebagai petugas, saya dapat membuat data anggota agar transaksi dapat dikaitkan dengan identitas yang valid.
+- Nomor anggota harus unik.
+- Status anggota minimal: `pending`, `active`, `suspended`, dan `inactive`.
+- Hanya anggota `active` yang dapat mengajukan pinjaman.
+- Perubahan status dan data penting tercatat di audit log.
+### Simpanan
+- Sebagai petugas, saya dapat mencatat setoran pokok, wajib, atau sukarela.
+- Nominal harus lebih besar dari nol dan memiliki tanggal transaksi.
+- Setiap transaksi memiliki nomor referensi unik dan status `pending`, `posted`, atau `void`.
+- Saldo hanya dihitung dari transaksi `posted`.
+- Transaksi yang sudah `posted` tidak dihapus; koreksi dilakukan melalui pembatalan atau transaksi penyesuaian.
+### Pengajuan pinjaman
+- Sebagai anggota, saya dapat mengajukan pinjaman dengan nominal, tenor, tujuan, dan lampiran pendukung.
+- Sistem menolak nominal atau tenor di luar batas produk.
+- Status mengikuti alur yang ditentukan dan tidak boleh dilompati sembarangan.
+- Approver dapat menyetujui nilai yang berbeda dari nilai pengajuan dengan alasan yang tersimpan.
+- Pemohon hanya dapat melihat pengajuan milik sendiri.
+### Angsuran
+- Setelah pencairan, sistem membuat jadwal angsuran sesuai tenor.
+- Setiap jadwal menyimpan pokok, bunga, total tagihan, tanggal jatuh tempo, jumlah terbayar, dan status.
+- Pembayaran dialokasikan secara konsisten ke angsuran yang paling lama jatuh tempo.
+- Pembayaran sebagian didukung.
+- Sisa pinjaman dan status jadwal diperbarui setelah pembayaran berhasil dicatat.
+### Laporan
+- Pengurus dapat memfilter laporan berdasarkan periode, anggota, produk, dan status.
+- Total pada kartu ringkasan konsisten dengan detail transaksi.
+- Ekspor CSV mengikuti filter aktif.
+## 6. Modul dan halaman
+### Publik dan autentikasi
+- `/login` — masuk melalui email OTP/magic code.
+- `/unauthorized` — akses ditolak.
+### Area anggota
+- `/dashboard` — ringkasan saldo, pinjaman aktif, angsuran berikutnya, aktivitas terbaru.
+- `/profil` — profil anggota.
+- `/simpanan` — saldo per jenis dan riwayat transaksi.
+- `/pinjaman` — daftar pengajuan dan pinjaman.
+- `/pinjaman/ajukan` — formulir pengajuan.
+- `/pinjaman/[id]` — detail, timeline, keputusan, jadwal angsuran.
+- `/notifikasi` — notifikasi sistem.
+### Area pengurus
+- `/admin` — dashboard operasional.
+- `/admin/anggota` dan `/admin/anggota/[id]`.
+- `/admin/simpanan` — pencatatan dan verifikasi transaksi.
+- `/admin/pengajuan` dan `/admin/pengajuan/[id]`.
+- `/admin/pinjaman` dan `/admin/pinjaman/[id]`.
+- `/admin/angsuran` — pencatatan pembayaran dan tunggakan.
+- `/admin/produk` — konfigurasi produk simpanan/pinjaman.
+- `/admin/laporan` — filter dan ekspor.
+- `/admin/pengguna` — peran dan status akses.
+- `/admin/audit-log` — riwayat aktivitas.
+## 6A. Fitur dan sub-fitur terperinci
+### Prioritas implementasi
+- **P0 — Wajib MVP:** diperlukan agar proses utama koperasi dapat berjalan dengan aman.
+- **P1 — Penting:** meningkatkan efisiensi operasional dan kelayakan pilot.
+- **P2 — Pengembangan:** dikerjakan setelah alur utama stabil dan tervalidasi.
+### 1. Autentikasi dan sesi pengguna — P0
+- Login menggunakan email OTP/magic link melalui autentikasi Laravel.
+- Verifikasi status akun sebelum pengguna masuk ke aplikasi.
+- Logout dari perangkat aktif.
+- Pemulihan sesi setelah halaman dimuat ulang.
+- Penanganan sesi kedaluwarsa.
+- Redirect berdasarkan role: anggota ke dashboard anggota, pengurus ke dashboard admin.
+- Halaman akses ditolak untuk role yang tidak berwenang.
+- Loading, error, dan retry state saat proses autentikasi.
+- Pencatatan login penting pada audit log tanpa menyimpan OTP atau token.
+**Kriteria selesai:** pengguna hanya dapat membuka menu yang diizinkan dan middleware, Policy/Gate, serta validasi server Laravel tetap menolak akses langsung yang tidak sah.
+### 2. Manajemen pengguna dan role — P0
+- Daftar pengguna dengan pencarian nama/email.
+- Filter berdasarkan role dan status.
+- Penetapan role `member`, `staff`, `approver`, atau `admin`.
+- Aktivasi, suspend, dan nonaktifkan akun.
+- Hubungkan akun pengguna ke data anggota.
+- Cegah pengguna mengubah role sendiri.
+- Konfirmasi sebelum perubahan role atau status.
+- Audit trail untuk setiap perubahan akses.
+- Indikator akun yang belum terhubung dengan anggota.
+**Pengguna:** admin.
+### 3. Dashboard anggota — P0
+- Kartu total saldo simpanan.
+- Rincian saldo pokok, wajib, dan sukarela.
+- Ringkasan pinjaman aktif dan sisa kewajiban.
+- Angsuran terdekat: nominal, jatuh tempo, dan status.
+- Peringatan tunggakan.
+- Status pengajuan pinjaman terbaru.
+- Lima transaksi terakhir.
+- Notifikasi belum dibaca.
+- Tombol cepat: ajukan pinjaman, lihat simpanan, dan lihat angsuran.
+- Empty state untuk anggota baru.
+### 4. Dashboard pengurus — P0
+- Jumlah anggota aktif, pending, suspended, dan inactive.
+- Total simpanan per jenis.
+- Jumlah dan nilai pengajuan menunggu review.
+- Jumlah dan outstanding pinjaman aktif.
+- Angsuran jatuh tempo hari ini, minggu ini, dan terlambat.
+- Nilai pembayaran yang diterima pada periode aktif.
+- Aktivitas transaksi terbaru.
+- Antrean tugas yang memerlukan tindakan.
+- Filter periode dashboard.
+- Tautan cepat ke input setoran, review pengajuan, dan pembayaran.
+### 5. Manajemen anggota — P0
+- Tambah anggota secara manual.
+- Nomor anggota otomatis atau manual sesuai konfigurasi.
+- Data identitas, kontak, alamat, pekerjaan, tanggal bergabung, dan catatan.
+- Validasi nomor anggota, email, telepon, dan nomor identitas.
+- Cek duplikasi sebelum menyimpan.
+- Status `pending`, `active`, `suspended`, dan `inactive`.
+- Aktivasi dan perubahan status dengan alasan.
+- Daftar anggota dengan pencarian, filter, sorting, dan pagination/limit.
+- Detail anggota berisi profil, simpanan, pengajuan, pinjaman, angsuran, dan aktivitas.
+- Edit data anggota dengan audit perubahan.
+- Masking nomor identitas pada tampilan daftar.
+- Ekspor daftar anggota sesuai filter — P1.
+- Impor anggota melalui CSV dengan preview dan validasi — P2.
+### 6. Produk simpanan — P0
+- Tambah dan edit produk simpanan.
+- Jenis produk: pokok, wajib, dan sukarela.
+- Kode serta nama produk unik.
+- Nominal default untuk simpanan pokok/wajib.
+- Minimum saldo untuk simpanan sukarela bila digunakan.
+- Periode kewajiban: sekali, bulanan, atau fleksibel.
+- Status produk aktif/nonaktif.
+- Produk nonaktif tidak dapat dipakai untuk transaksi baru.
+- Perubahan konfigurasi tidak mengubah histori transaksi.
+### 7. Transaksi simpanan — P0
+- Catat setoran pokok, wajib, dan sukarela.
+- Catat penarikan simpanan sukarela.
+- Transaksi penyesuaian dengan alasan wajib.
+- Pilih anggota, produk, tanggal, nominal, metode, dan referensi.
+- Nomor transaksi otomatis dan unik.
+- Status `pending`, `posted`, dan `void`.
+- Preview sebelum posting.
+- Konfirmasi eksplisit saat posting dan void.
+- Pemeriksaan saldo minimum sebelum penarikan.
+- Pemeriksaan referensi/idempotency key untuk mencegah duplikasi.
+- Saldo realtime berdasarkan transaksi `posted`.
+- Bukti transaksi ramah cetak.
+- Filter berdasarkan periode, anggota, produk, jenis, dan status.
+- Ekspor transaksi simpanan ke CSV — P1.
+- Koreksi melalui void/reversal, bukan menghapus transaksi.
+### 8. Produk pinjaman — P0
+- Tambah dan edit produk pinjaman.
+- Kode dan nama produk unik.
+- Batas minimum/maksimum pinjaman.
+- Tenor minimum/maksimum.
+- Suku bunga dan metode bunga; MVP menggunakan flat.
+- Konfigurasi persentase potongan Dana Risiko Koperasi (default 0,5% untuk Pinjaman Reguler).
+- Konfigurasi persentase potongan Simpanan Wajib Peminjam (default 0,5% untuk Pinjaman Reguler).
+- Konfigurasi denda dan grace period bila kebijakannya sudah ditetapkan — P1.
+- Persyaratan minimum keanggotaan atau saldo — P1.
+- Daftar dokumen wajib.
+- Status aktif/nonaktif.
+- Simulasi berdasarkan parameter produk.
+- Snapshot parameter ketika pinjaman disetujui.
+### 9. Simulasi pinjaman — P0
+- Input nominal dan tenor.
+- Tampilkan pokok, bunga total, total pembayaran, estimasi angsuran, serta rincian potongan pencairan (Dana Risiko, Simpanan Wajib, dan pencairan bersih/net disbursement).
+- Tampilkan jadwal angsuran simulasi.
+- Validasi terhadap batas produk.
+- Format rupiah dan tanggal Indonesia.
+- Penjelasan bahwa simulasi bukan persetujuan final.
+- Penanganan selisih pembulatan pada angsuran terakhir.
+### 10. Pengajuan pinjaman anggota — P0
+- Buat pengajuan baru.
+- Simpan otomatis/manual sebagai `draft`.
+- Pilih produk, nominal, tenor, dan tujuan.
+- Tampilkan simulasi sebelum submit.
+- Unggah dokumen pendukung.
+- Checklist kelengkapan.
+- Persetujuan pernyataan kebenaran data.
+- Submit dengan konfirmasi.
+- Batalkan pengajuan selama status masih diizinkan.
+- Daftar dan detail pengajuan milik sendiri.
+- Timeline status dan catatan yang boleh dilihat anggota.
+- Notifikasi saat status berubah.
+- Cegah pengajuan bila anggota tidak aktif atau melewati kebijakan pinjaman aktif.
+### 11. Review dan approval pinjaman — P0
+- Antrean pengajuan berdasarkan status.
+- Filter berdasarkan tanggal, produk, anggota, nominal, dan petugas review.
+- Detail profil anggota, saldo simpanan, pinjaman aktif, serta dokumen.
+- Checklist verifikasi data dan dokumen.
+- Ubah status menjadi `under_review`.
+- Catatan internal reviewer.
+- Rekomendasi nilai, tenor, dan bunga.
+- Approve dengan parameter final.
+- Reject dengan alasan wajib.
+- Riwayat keputusan dan aktor.
+- Pemisahan hak reviewer dan approver.
+- Cegah keputusan ganda melalui validasi status/idempotensi.
+- Notifikasi hasil keputusan kepada anggota.
+- Approval bertingkat — P2.
+### 12. Pencairan pinjaman — P0
+- Hanya pengajuan `approved` yang dapat dicairkan.
+- Verifikasi nilai final, tanggal pencairan, dan tujuan rekening/kas.
+- Pemotongan otomatis pencairan (net disbursement): Kas keluar = Plafon - (Dana Risiko + Simpanan Wajib).
+- Otomatis membuat transaksi Simpanan Wajib bertipe `posted` atas nama anggota sebesar persentase potongan Simpanan Wajib.
+- Otomatis mencatat alokasi Dana Risiko Koperasi sebesar persentase potongan Dana Risiko.
+- Penjurnalan otomatis yang seimbang: Debit Piutang Pinjaman (100%), Kredit Kas/Bank (Net Disbursement), Kredit Simpanan Wajib Anggota, Kredit Dana Risiko Koperasi.
+- Pilih metode pencairan.
+- Nomor pinjaman otomatis dan unik.
+- Konfirmasi eksplisit sebelum pencairan.
+- Operasi idempotent untuk membuat pinjaman dan seluruh jadwal.
+- Snapshot nilai pokok, bunga, tenor, persentase potongan, serta ketentuan kontrak.
+- Bukti pencairan ramah cetak.
+- Status pengajuan otomatis menjadi `disbursed`.
+- Audit log dan notifikasi.
+- Pembatalan pencairan hanya melalui prosedur koreksi khusus, bukan delete.
+### 13. Jadwal angsuran — P0
+- Generate jadwal otomatis saat pencairan.
+- Nomor urut angsuran.
+- Tanggal jatuh tempo.
+- Pokok, bunga, denda, total, terbayar, dan sisa.
+- Status `unpaid`, `partial`, `paid`, dan `overdue`.
+- Detail jadwal per pinjaman.
+- Highlight angsuran terdekat dan terlambat.
+- Hitung outstanding pinjaman.
+- Penyesuaian pembulatan di angsuran terakhir.
+- Cetak jadwal angsuran.
+- Perubahan jadwal hanya melalui restrukturisasi terkontrol — P2.
+### 14. Pembayaran angsuran — P0
+- Cari berdasarkan anggota, nomor pinjaman, atau nomor angsuran.
+- Tampilkan tagihan tertua dan total kewajiban.
+- Input tanggal, nominal, metode, dan referensi pembayaran.
+- Dukungan pembayaran penuh dan sebagian.
+- Validasi pembayaran nol, negatif, berlebih, atau duplikat.
+- Status pembayaran `pending`, `posted`, dan `void`.
+- Alokasi oldest-due-first.
+- Pisahkan alokasi pokok, bunga, dan denda.
+- Perbarui jadwal serta outstanding secara atomik.
+- Tutup pinjaman otomatis ketika saldo menjadi nol.
+- Bukti pembayaran ramah cetak.
+- Void/reversal dengan alasan serta otorisasi.
+- Pelunasan dipercepat — P1 setelah kebijakan ditetapkan.
+### 15. Tunggakan dan penagihan — P1
+- Daftar angsuran overdue.
+- Filter berdasarkan umur tunggakan, produk, anggota, dan petugas.
+- Aging bucket: 1–30, 31–60, 61–90, dan \>90 hari.
+- Total tunggakan per anggota dan pinjaman.
+- Catatan tindak lanjut penagihan.
+- Status tindak lanjut.
+- Pengingat dalam aplikasi.
+- Rekap janji bayar — P2.
+- Denda otomatis hanya setelah formula disetujui.
+### 16. Laporan — P0/P1
+- Laporan daftar anggota — P0.
+- Laporan saldo simpanan per anggota dan produk — P0.
+- Mutasi simpanan per periode — P0.
+- Daftar pengajuan berdasarkan status — P0.
+- Pinjaman aktif dan outstanding — P0.
+- Jadwal jatuh tempo — P0.
+- Pembayaran angsuran per periode — P0.
+- Laporan tunggakan dan aging — P1.
+- Ringkasan pencairan pinjaman — P1.
+- Filter periode, anggota, produk, status, dan petugas.
+- Drill-down dari total ke detail.
+- Ekspor CSV sesuai filter.
+- Tampilan cetak/PDF melalui print stylesheet — P1.
+- Tampilkan waktu pembuatan laporan dan pembuatnya.
+### 17. Notifikasi — P1
+- Notifikasi pengajuan berhasil dikirim.
+- Notifikasi pengajuan masuk kepada petugas.
+- Notifikasi hasil persetujuan/penolakan.
+- Notifikasi pencairan.
+- Pengingat jatuh tempo.
+- Peringatan tunggakan.
+- Notifikasi transaksi simpanan dan pembayaran berhasil di-posting.
+- Daftar notifikasi dan jumlah belum dibaca.
+- Tandai satu atau semua sebagai sudah dibaca.
+- Tautan notifikasi menuju objek terkait.
+- Email/WhatsApp berada di luar MVP sampai integrasinya ditetapkan — P2.
+### 18. Dokumen dan lampiran — P1
+- Unggah dokumen pengajuan.
+- Kategori dokumen: identitas, slip penghasilan, surat pendukung, dan lainnya.
+- Validasi jenis serta ukuran file.
+- Preview atau unduh file yang diizinkan.
+- Hapus/ganti lampiran hanya sebelum pengajuan diputuskan.
+- Metadata pengunggah dan waktu unggah.
+- Akses file mengikuti akses entitas induk.
+- Hindari URL publik permanen untuk dokumen sensitif.
+### 19. Audit log — P0
+- Catat aktor, aksi, waktu, jenis entitas, dan ID entitas.
+- Catat perubahan sebelum/sesudah yang sudah disanitasi.
+- Aktivitas wajib: perubahan role, status anggota, posting/void transaksi, keputusan, pencairan, dan pembayaran.
+- Filter berdasarkan aktor, aksi, entitas, dan periode.
+- Detail audit hanya untuk admin atau pemeriksa berwenang.
+- Audit log tidak dapat diedit dari UI.
+- Jangan menyimpan OTP, token, atau data identitas lengkap dalam log.
+- Ekspor audit untuk pemeriksaan — P1.
+### 20. Pengaturan koperasi — P1
+- Nama, alamat, telepon, email, logo, dan identitas koperasi.
+- Format nomor anggota, transaksi, pengajuan, pinjaman, dan pembayaran.
+- Zona waktu Asia/Jakarta.
+- Locale `id-ID` dan mata uang IDR.
+- Pengaturan tanggal jatuh tempo dan hari libur setelah kebijakan ditetapkan.
+- Teks syarat dan ketentuan.
+- Pengaturan tanda tangan/nama pejabat pada bukti cetak.
+- Perubahan pengaturan tercatat di audit log.
+### 21. Pencarian, filter, dan tabel — P0
+- Pencarian dengan debounce.
+- Filter yang dapat direset.
+- Sorting kolom yang relevan.
+- Pagination atau pembatasan query.
+- Jumlah hasil dan status filter aktif.
+- Empty state dan no-result state.
+- Loading skeleton dan error state.
+- Aksi baris mengikuti role serta status data.
+- Kolom sensitif dimasking berdasarkan role.
+- Filter dipertahankan di query string bila sesuai.
+### 22. Bukti transaksi dan cetak — P1
+- Bukti setoran/penarikan simpanan.
+- Bukti pencairan pinjaman.
+- Jadwal angsuran.
+- Bukti pembayaran angsuran.
+- Nomor referensi, tanggal, anggota, nominal, metode, dan petugas.
+- Format rupiah dan tanggal Indonesia.
+- Logo serta identitas koperasi.
+- Print stylesheet ukuran A4/thermal sesuai kebutuhan yang diputuskan.
+- Penanda jika transaksi sudah di-void.
+### 23. Keamanan dan privasi — P0
+- Deny-by-default melalui middleware, Policy/Gate, dan pembatasan query Laravel.
+- Isolasi data antaranggota.
+- Least privilege untuk setiap role.
+- Validasi input pada klien dan lapisan operasi tepercaya.
+- Proteksi idempotensi untuk aksi finansial.
+- Masking data identitas.
+- Tidak ada secret di kode frontend atau repository.
+- Konfirmasi untuk aksi berisiko.
+- Sanitasi pesan error dan audit log.
+- Pengujian akses horizontal dan vertical privilege escalation.
+- Kebijakan retensi dokumen dan data sebelum produksi.
+### 24. Operasional dan deployment — P0
+- Environment development untuk `koperasi.test` dengan Nginx reverse proxy dan PHP-FPM 8.5.
+- Environment production untuk `https://kpri.mtsn3padang.sch.id` dengan Nginx reverse proxy dan PHP-FPM 8.5.
+- Build aset React 19, Inertia.js v3, TypeScript, dan Tailwind CSS melalui Vite; jalankan Laravel 13 melalui PHP-FPM 8.5 di CloudPanel.
+- Konfigurasi PHP-FPM 8.5, Laravel queue worker melalui Supervisor/systemd, scheduler, dan restart policy.
+- Reverse proxy dan SSL aktif.
+- Redirect HTTP ke HTTPS.
+- Environment variable dikelola di server, bukan repository.
+- Health check aplikasi.
+- Logging error yang tidak membocorkan PII.
+- Prosedur deploy, rollback, dan verifikasi pascadeploy.
+- Backup dan pemulihan PostgreSQL melalui `pg_dump`/`pg_restore` serta kebijakan retensi — P1.
+### 25. Bantuan dan pengalaman pengguna — P1
+- Navigasi berbeda untuk anggota dan pengurus.
+- Breadcrumb pada area admin.
+- Tooltip untuk istilah koperasi/keuangan.
+- Pesan validasi dalam Bahasa Indonesia.
+- Konfirmasi sebelum aksi final.
+- Toast hasil operasi yang jelas.
+- Empty state dengan tindakan berikutnya.
+- Halaman bantuan singkat dan kontak pengurus.
+- Responsif mulai lebar 360px.
+- Navigasi keyboard, label form, fokus, dan kontras yang memadai.
+### Matriks akses ringkas
+<table header-row="true">
+<tr>
+<td>Modul</td>
+<td>Anggota</td>
+<td>Petugas</td>
+<td>Approver</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>Profil anggota</td>
+<td>Lihat milik sendiri</td>
+<td>Kelola</td>
+<td>Lihat</td>
+<td>Kelola</td>
+</tr>
+<tr>
+<td>Simpanan</td>
+<td>Lihat milik sendiri</td>
+<td>Input/post sesuai hak</td>
+<td>Lihat</td>
+<td>Kelola</td>
+</tr>
+<tr>
+<td>Pengajuan</td>
+<td>Buat dan lihat milik sendiri</td>
+<td>Review</td>
+<td>Putuskan</td>
+<td>Kelola</td>
+</tr>
+<tr>
+<td>Pencairan</td>
+<td>Lihat milik sendiri</td>
+<td>Proses sesuai hak</td>
+<td>Lihat/otorisasi sesuai kebijakan</td>
+<td>Kelola</td>
+</tr>
+<tr>
+<td>Pembayaran</td>
+<td>Lihat milik sendiri</td>
+<td>Input/post sesuai hak</td>
+<td>Lihat</td>
+<td>Kelola</td>
+</tr>
+<tr>
+<td>Laporan</td>
+<td>Ringkasan pribadi</td>
+<td>Operasional</td>
+<td>Operasional/manajerial</td>
+<td>Semua</td>
+</tr>
+<tr>
+<td>Pengguna dan role</td>
+<td>Tidak</td>
+<td>Tidak</td>
+<td>Tidak</td>
+<td>Kelola</td>
+</tr>
+<tr>
+<td>Audit log</td>
+<td>Tidak</td>
+<td>Terbatas</td>
+<td>Terbatas</td>
+<td>Semua</td>
+</tr>
+</table>
+## 6B. Spesifikasi implementasi
+### Katalog Service Layer koperasi
+Service berikut menjadi batas use case aplikasi. Controller dan halaman/komponen React melalui Inertia.js hanya memanggil service; akses data dilakukan di Service Layer melalui Eloquent model atau Query Object yang terarah, tanpa mengakses detail UI.
+#### `MemberService` — P0
+- `registerMember()` — registrasi anggota, validasi duplikasi, penerbitan nomor anggota, dan audit log.
+- `activateMember()` — aktivasi anggota setelah verifikasi kelengkapan.
+- `deactivateMember()` — suspend/nonaktif dengan alasan, aktor, dan waktu perubahan.
+- Menggunakan model Eloquent `Member` melalui `MemberService`; perubahan status wajib mengikuti state transition dan Policy.
+#### `SavingService` — P0
+- `postPrincipalSaving()` — pencatatan simpanan pokok.
+- `postMandatorySaving()` — pencatatan simpanan wajib.
+- `postVoluntarySaving()` — pencatatan simpanan sukarela.
+- `withdrawVoluntarySaving()` — penarikan simpanan sukarela setelah pemeriksaan saldo minimum.
+- `voidSavingTransaction()` — koreksi melalui void/reversal, bukan penghapusan.
+- Menggunakan model Eloquent transaksi simpanan, transaksi PostgreSQL, idempotency key, unique reference, dan row locking saat diperlukan.
+#### `LoanService` — P0
+- `submitApplication()` — pengajuan pinjaman dan validasi kelayakan dasar.
+- `approveApplication()` / `rejectApplication()` — keputusan dengan snapshot nominal, tenor, bunga, alasan, dan aktor.
+- `calculateInterest()` — perhitungan bunga melalui domain calculator yang murni.
+- `generateInstallmentSchedule()` — pembuatan jadwal dengan pembulatan pada angsuran terakhir.
+- `disburseLoan()` — pencairan atomik, pembuatan pinjaman, jadwal, jurnal, dan audit log.
+- Menggunakan model Eloquent `Loan` dan `LoanApplication` di dalam Service Layer; keputusan serta pencairan wajib idempotent dan aman terhadap concurrent update.
+#### `InstallmentService` — P0/P1
+- `postPayment()` — pembayaran dan alokasi oldest-due-first secara atomik — P0.
+- `calculatePenalty()` / `applyPenalty()` — perhitungan dan pembebanan denda berdasarkan kebijakan yang disetujui — P1.
+- `earlySettlementQuote()` / `settleEarly()` — simulasi dan pelunasan dipercepat setelah formula final ditetapkan — P1.
+- `voidPayment()` — pembalikan pembayaran dan allocation secara konsisten — P0.
+- Menggunakan model Eloquent `Installment` dan `Payment` di dalam Service Layer; setiap posting/void memicu jurnal otomatis.
+#### `JournalService` — P0
+- `postFromTransaction()` — membuat jurnal otomatis dari simpanan, penarikan, pencairan, pembayaran, denda, dan distribusi SHU yang berhasil di-posting.
+- `reverseJournal()` — membuat jurnal pembalik; jurnal posted tidak diedit atau dihapus.
+- `getGeneralLedger()` — buku besar per akun dan periode.
+- `getTrialBalance()` — neraca saldo dengan total debit sama dengan kredit.
+- Menggunakan model Eloquent `JournalEntry`, `JournalLine`, dan `Account` melalui `JournalService`. Satu sumber transaksi hanya boleh memiliki satu jurnal aktif melalui source type/source ID dan idempotency key unik.
+#### `SHUService` — P1
+- `calculateSHU()` — menghitung SHU periode dari hasil usaha bersih dan parameter alokasi yang disahkan.
+- `allocateMemberSHU()` — menghitung bagian anggota berdasarkan komponen jasa modal dan jasa usaha.
+- `distributeSHU()` — mem-posting distribusi, jurnal, dan status pembayaran secara atomik.
+- Menggunakan model Eloquent SHU, anggota, dan jurnal melalui `SHUService`; formula, bobot, sumber data, hasil pembulatan, serta persetujuan harus tersimpan sebagai snapshot.
+#### `ReportService` — P0/P1
+- `memberReport()` — laporan anggota — P0.
+- `loanReport()` — pengajuan, pinjaman aktif, jadwal, pembayaran, dan tunggakan — P0/P1.
+- `savingReport()` — saldo dan mutasi simpanan — P0.
+- `financialReport()` — jurnal, buku besar, neraca saldo, serta ringkasan SHU — P1.
+- Menggunakan Query Object/read model khusus laporan. Filter yang sama wajib digunakan untuk tampilan, total, dan ekspor; service laporan bersifat read-only dan tidak mengubah transaksi.
+### Aturan lintas service
+- Method publik menerima DTO/command object dan mengembalikan result DTO, bukan request, array bebas, atau model Eloquent yang dapat dimutasi UI.
+- Otorisasi, validasi state terakhir, idempotensi, transaksi, locking, audit, dan event setelah commit diterapkan sesuai risiko use case.
+- Service tidak memanggil komponen React atau adapter Inertia.js. Service boleh berkolaborasi dengan domain service atau service aplikasi lain melalui kontrak yang jelas tanpa circular dependency.
+- Jurnal otomatis dibuat dalam unit transaksi yang sama atau melalui transactional outbox yang menjamin eventual consistency dan aman di-retry.
+- Unit test mencakup domain calculator dan aturan service; integration test memakai database PostgreSQL untuk query Eloquent, constraint, locking, transaksi, dan keseimbangan jurnal.
+### 1. Konvensi umum
+- Kode PHP menggunakan `declare(strict_types=1)` pada class domain/aplikasi; tipe parameter, return type, PHP enum, dan DTO digunakan secara konsisten. React 19 menggunakan TypeScript strict mode.
+- Nama variabel dan kode menggunakan Bahasa Inggris; UI, validasi, notifikasi, dan bukti transaksi menggunakan Bahasa Indonesia.
+- Halaman dan komponen React hanya menangani presentasi serta state UI. Inertia.js v3 menjadi adapter transport antara Laravel dan React; use case, aturan bisnis, dan orkestrasi akses data Eloquent dijalankan melalui Service Layer.
+- Controller dan halaman/komponen React tidak boleh menjalankan query Eloquent kompleks atau mengorkestrasi transaksi finansial secara langsung.
+- Nilai uang disimpan sebagai integer rupiah dan ditampilkan dengan `Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 })`.
+- Timestamp disimpan dalam ISO 8601; tampilan menggunakan zona waktu Asia/Jakarta.
+- ID internal menggunakan UUID/ULID yang dikelola Laravel dan PostgreSQL. Nomor bisnis seperti nomor anggota dan nomor transaksi disimpan terpisah.
+- Semua entitas memiliki `createdAt` dan `updatedAt`; entitas finansial juga menyimpan waktu posting/void serta aktornya.
+- Jangan gunakan hard delete untuk anggota dan data finansial. Gunakan status nonaktif, archive, void, atau reversal.
+- Setiap operasi penting menghasilkan pesan sukses/gagal yang jelas dan audit log bila relevan.
+### 2. Format nomor bisnis
+Format awal dapat dikonfigurasi sebelum produksi:
+```plain text
+Anggota         : AGT-YYYY-000001
+Transaksi simpanan: SIM-YYYYMM-000001
+Pengajuan       : PNG-YYYYMM-000001
+Pinjaman        : PJM-YYYYMM-000001
+Pembayaran      : BYR-YYYYMM-000001
+Void/Reversal   : REV-YYYYMM-000001
+```
+- Nomor harus unik dan tidak berubah setelah diterbitkan.
+- Pembuatan nomor harus aman terhadap dua proses bersamaan menggunakan transaksi PostgreSQL, unique constraint, dan locking/sequence yang tepat.
+- Nomor bisnis tidak digunakan sebagai satu-satunya kontrol idempotensi.
+### 3. Spesifikasi UI dan layout
+- Layout anggota dan admin dipisahkan tetapi memakai design system yang sama.
+- Desktop admin menggunakan sidebar; mobile menggunakan drawer atau bottom navigation yang ringkas.
+- Lebar minimum yang didukung 360px.
+- Setiap halaman data memiliki judul, deskripsi singkat, aksi utama, filter, tabel/kartu, dan state kosong.
+- Form panjang dibagi menjadi section atau wizard.
+- Tombol aksi finansial menggunakan label eksplisit seperti **Post setoran**, **Cairkan pinjaman**, dan **Post pembayaran**.
+- Aksi final menampilkan modal konfirmasi berisi anggota, nomor referensi, nominal, tanggal, dan dampaknya.
+- Gunakan badge status dengan warna dan teks; warna tidak boleh menjadi satu-satunya pembeda.
+- Semua field memiliki label, bantuan singkat bila diperlukan, error inline, serta fokus ke error pertama.
+- Tabel mendukung loading skeleton, error, empty state, no-result state, filter reset, dan pagination/limit.
+### 4. Spesifikasi autentikasi dan otorisasi
+- Status autentikasi berasal dari sesi Laravel yang aman dengan cookie `HttpOnly`, `Secure`, dan proteksi CSRF.
+- Setelah login, Laravel memuat `profile` dan role pengguna lalu membagikannya ke React melalui Inertia shared props.
+- Jika profil belum tersedia, tampilkan status akun belum dikonfigurasi; jangan memberi akses default.
+- Penyembunyian elemen pada React hanya untuk pengalaman pengguna. Middleware, Policy/Gate, Laravel Form Request, dan query terotorisasi menjadi kontrol akses utama di server.
+- Otorisasi Laravel menerapkan deny-by-default melalui middleware, Policy/Gate, dan query terotorisasi.
+- Anggota hanya dapat mengakses entitas yang terhubung ke `memberId` milik akun tersebut.
+- Staff tidak boleh menetapkan role atau menyetujui pinjaman tanpa izin approver.
+- Approver tidak otomatis dapat mengelola pengguna.
+- Admin memiliki akses konfigurasi, tetapi tindakan finansial tetap mengikuti state machine dan audit.
+- Skenario akses wajib diuji dengan minimal dua akun anggota berbeda.
+### 5. Spesifikasi formulir dan validasi
+- Semua payload divalidasi pada server dengan Laravel Form Request. Zod dapat digunakan pada React 19 untuk umpan balik awal, tetapi tidak menggantikan validasi server.
+- Nominal wajib integer lebih besar dari nol.
+- Tanggal transaksi tidak boleh kosong; kebijakan backdate/future date harus dibatasi menurut role.
+- Email dinormalisasi ke lowercase; nomor telepon disimpan dalam format yang konsisten.
+- Field nomor referensi di-trim dan diperiksa duplikasinya.
+- Tombol submit dinonaktifkan ketika request berlangsung.
+- Double click dan retry tidak boleh membuat entitas finansial ganda.
+- Error teknis dipetakan menjadi pesan ramah pengguna tanpa membocorkan stack, query, atau data sensitif.
+- Validasi yang memengaruhi keamanan atau uang diulang pada lapisan transaksi/permission, bukan hanya UI.
+### 6. Spesifikasi transaksi finansial
+- Status awal transaksi adalah `pending` kecuali operasi atomik yang secara eksplisit langsung `posted` sudah disetujui.
+- Transaksi `posted` bersifat immutable dari UI.
+- Koreksi menggunakan void/reversal dan wajib menyimpan alasan.
+- Operasi posting memverifikasi status terakhir tepat sebelum commit.
+- Setiap aksi posting memiliki `idempotencyKey` atau referensi unik yang diverifikasi.
+- Saldo dihitung hanya dari transaksi `posted` dikurangi reversal yang valid.
+- Pencairan membuat `loan`, `installments`, snapshot kontrak, audit log, dan perubahan status pengajuan sebagai satu unit logis.
+- Posting pembayaran membuat payment allocation dan memperbarui jadwal/outstanding sebagai satu unit logis.
+- Gunakan transaksi database PostgreSQL untuk operasi atomik; tetap terapkan state transaksi, idempotency, locking yang tepat, dan proses rekonsiliasi terdokumentasi.
+### 7. Spesifikasi kalkulasi pinjaman
+Untuk bunga flat MVP:
+```plain text
+totalInterest = round(principal × annualRate × termMonths / 12)
+totalPayable  = principal + totalInterest
+basePrincipal = floor(principal / termMonths)
+baseInterest  = floor(totalInterest / termMonths)
+```
+- `annualRate` wajib menggunakan representasi konsisten, disarankan basis points untuk mencegah ambigu.
+- Selisih pembagian pokok dan bunga ditempatkan pada angsuran terakhir.
+- Jumlah seluruh `principalDue` harus sama dengan principal.
+- Jumlah seluruh `interestDue` harus sama dengan total interest.
+- Jumlah seluruh `totalDue` harus sama dengan total payable.
+- Tanggal jatuh tempo dihitung bulanan dari `firstDueDate`; aturan akhir bulan dan hari libur harus diuji.
+- Kalkulator berupa pure function dan tidak bergantung pada komponen UI, Eloquent, atau koneksi database.
+### 8. Spesifikasi alokasi pembayaran
+- Urutkan jadwal berdasarkan tanggal jatuh tempo dan nomor urut paling lama.
+- Alokasikan ke jadwal dengan sisa kewajiban lebih dari nol.
+- Urutan komponen awal: denda → bunga → pokok, tetapi harus dikonfirmasi sesuai kebijakan koperasi sebelum produksi.
+- Pembayaran sebagian mengubah status jadwal menjadi `partial`.
+- Jadwal menjadi `paid` hanya jika `remainingAmount` nol.
+- Pembayaran berlebih ditolak pada MVP, kecuali fitur saldo lebih/pelunasan dipercepat telah ditetapkan.
+- Total allocation wajib sama dengan nominal payment yang di-posting.
+- Void payment harus membalik seluruh allocation secara konsisten.
+### 9. Spesifikasi query dan realtime
+- Jangan mengambil seluruh histori dalam satu query tanpa batas.
+- Query daftar menggunakan filter dan limit; pagination diterapkan bila didukung pola data yang dipilih.
+- Muat hanya data yang diperlukan halaman aktif melalui Inertia partial reload, lazy props, polling terbatas, atau broadcast bila benar-benar dibutuhkan.
+- Dashboard tidak menghitung agregasi besar berulang kali di browser bila datanya terus tumbuh.
+- Gunakan Service Layer untuk use case dan orkestrasi proses; gunakan Query Object untuk kebutuhan baca kompleks agar controller dan halaman React tidak berisi query Eloquent.
+- Semua halaman harus menangani loading, error, data kosong, serta data yang berubah setelah submit Inertia.js, partial reload, deferred props, polling terbatas, atau broadcast.
+- Rekonsiliasi laporan wajib menggunakan sumber data `posted` yang sama dengan saldo operasional.
+### 10. Spesifikasi lampiran
+- Tipe file yang diizinkan awal: PDF, JPG, JPEG, dan PNG.
+- Batas ukuran awal direkomendasikan 5 MB per file dan harus dapat dikonfigurasi.
+- Nama file disanitasi sebelum ditampilkan.
+- Metadata menyimpan kategori, ukuran, tipe, pengunggah, dan waktu unggah.
+- File sensitif tidak boleh dapat diakses hanya dengan menebak URL.
+- Penghapusan/penggantian dokumen dibatasi oleh status pengajuan dan role.
+### 11. Spesifikasi laporan dan ekspor
+- Filter laporan menjadi sumber yang sama bagi tampilan, total ringkasan, dan ekspor.
+- CSV menggunakan UTF-8, judul kolom Bahasa Indonesia, serta tanggal/nilai yang konsisten.
+- Nilai uang dalam CSV disimpan sebagai angka integer agar dapat dihitung ulang.
+- Laporan menampilkan periode, waktu dibuat, filter aktif, dan pembuat laporan.
+- Total pada laporan harus dapat dilacak sampai transaksi detail.
+- Dataset besar tidak boleh dibentuk tanpa limit/peringatan.
+### 12. Spesifikasi notifikasi
+- Notifikasi dibuat setelah operasi utama berhasil, bukan sebelum commit.
+- Notifikasi menyimpan penerima, tipe, judul, pesan, target URL, waktu, dan status baca.
+- Pengguna hanya membaca notifikasi milik sendiri.
+- Kegagalan notifikasi/queue tidak boleh menggandakan transaksi utama saat job atau request diulang.
+- Notifikasi jatuh tempo harus memiliki strategi eksekusi yang jelas sebelum produksi.
+### 13. Spesifikasi error handling dan observability
+- Gunakan error boundary pada level aplikasi dan halaman fitur penting.
+- Error pengguna, validasi, permission, konflik status, dan kegagalan jaringan dibedakan.
+- Log produksi tidak boleh memuat token, OTP, nomor identitas lengkap, atau dokumen.
+- Setiap error finansial menyertakan correlation ID yang aman untuk penelusuran.
+- Sediakan health endpoint/halaman yang tidak membocorkan konfigurasi sensitif.
+- Setelah deploy, lakukan smoke test login, akses role, query, dan operasi baca non-destruktif.
+### 14. Spesifikasi deployment CloudPanel
+- Source/build berasal dari branch produksi yang disetujui.
+- Gunakan PHP 8.5 dan arahkan document root Nginx ke direktori `public/` Laravel.
+- Environment production menggunakan `APP_URL=https://kpri.mtsn3padang.sch.id`, `APP_ENV=production`, dan `APP_DEBUG=false`.
+- Simpan `APP_KEY`, kredensial PostgreSQL, SMTP, dan secret lain di environment server; jangan bagikan melalui Inertia props atau bundle frontend.
+- Jalankan `composer install --no-dev --optimize-autoloader`, `npm ci`, build aset Vite, migration terkontrol, cache konfigurasi/route/view, serta test kritis sebelum aktivasi release.
+- Nginx bertindak sebagai reverse proxy/web server dan meneruskan request PHP ke PHP-FPM 8.5.
+- Jalankan queue worker Laravel melalui Supervisor/systemd dengan auto-restart dan log rotation; aktifkan Laravel Scheduler melalui cron.
+- SSL aktif dan HTTP diarahkan ke HTTPS.
+- Pastikan direktori `storage/` dan `bootstrap/cache/` memiliki permission yang tepat.
+- Siapkan prosedur deploy atomik dan rollback ke release/commit sebelumnya.
+- Setelah deploy, verifikasi domain, SSL, login, otorisasi, koneksi PostgreSQL, queue, scheduler, aset, dan error log.
+## 6C. Task backlog implementasi
+### Aturan status task
+- [ ] **Todo:** belum dikerjakan.
+- [ ] **Ready:** requirement dan dependency sudah jelas.
+- [ ] **In progress:** sedang dikerjakan; maksimal satu kelompok task besar untuk satu agent.
+- [ ] **Review:** implementasi selesai dan menunggu pemeriksaan.
+- [x] **Done:** acceptance criteria, test, lint, dan type-check terkait sudah lulus.
+### Fase 0 — Bootstrap dan fondasi
+- [x] **T-001 \[P0\]** Audit isi folder `/home/naval/www/koperasi.test`; catat file yang dipertahankan dan risiko konflik.
+- [x] **T-002 \[P0\]** Inisialisasi Laravel 13 pada PHP 8.5 dengan Inertia.js v3, React 19, TypeScript strict, Tailwind CSS, dan Vite langsung pada folder proyek.
+- [x] **T-003 \[P0\]** Pasang dan konfigurasi React 19, adapter Inertia.js v3 untuk Laravel/React, Tailwind CSS, serta komponen UI dasar.
+- [x] **T-004 \[P0\]** Pasang Pest/PHPUnit, Vitest, React Testing Library, dan Playwright; siapkan `strict_types`, PHPStan/Larastan, Pint, ESLint, dan TypeScript strict.
+- [x] **T-005 \[P0\]** Sesuaikan `.env.example` tanpa secret dan buat `.env` lokal berisi `APP_URL`, koneksi PostgreSQL, session, queue, serta konfigurasi mail.
+- [x] **T-006 \[P0\]** Konfigurasikan PostgreSQL 18, Laravel session/auth, Inertia.js v3, model Eloquent, dan fondasi Service Layer.
+- [x] **T-007 \[P0\]** Buat app shell Inertia.js/React 19, metadata, error boundary, loading, not-found, dan unauthorized.
+- [x] **T-008 \[P0\]** Konfigurasi domain lokal `koperasi.test` melalui Nginx reverse proxy ke PHP-FPM 8.5; aktifkan TLS lokal bila diperlukan.
+- [x] **T-009 \[P0\]** Tambahkan perintah `lint`, `analyse`, `test`, `test:e2e`, dan `build` untuk Pint, PHPStan/Larastan, Pest/PHPUnit, Playwright, dan Vite.
+- [x] **T-010 \[P0\]** Buat README setup development, aturan environment, alur Controller–Service–Eloquent, dan konvensi dependency injection.
+**Dependency:** tidak ada.  
+**Definition of done:** aplikasi Laravel 13 + Inertia.js v3 + React 19 tampil di `koperasi.test`; PHP 8.5, PostgreSQL 18, Nginx reverse proxy, model Eloquent, Service Layer, lint, type-check, static analysis, test, dan build awal lulus.
+### Fase 1 — Design system dan utilitas domain
+- [x] **T-011 \[P0\]** Definisikan color token, typography, spacing, status badge, dan state komponen.
+- [x] **T-012 \[P0\]** Buat komponen Button, Input, Select, Date Input, Dialog, Table, Badge, Toast, Skeleton, dan Empty State.
+- [x] **T-013 \[P0\]** Buat helper format rupiah, tanggal Indonesia, nomor telepon, serta masking identitas.
+- [x] **T-014 \[P0\]** Buat PHP backed enum untuk role, status anggota, transaksi, pengajuan, pinjaman, dan angsuran.
+- [x] **T-015 \[P0\]** Buat helper hasil operasi dan pemetaan error ke pesan Bahasa Indonesia.
+- [x] **T-016 \[P0\]** Buat pure function kalkulator bunga flat dan generator jadwal.
+- [x] **T-017 \[P0\]** Buat unit test kalkulator, pembulatan, tenor, dan kasus akhir bulan.
+- [x] **T-018 \[P0\]** Buat state transition validator untuk pengajuan dan transaksi.
+- [x] **T-019 \[P0\]** Buat unit test seluruh transisi valid dan tidak valid.
+**Dependency:** T-001–T-010.  
+**Definition of done:** komponen dasar terdokumentasi; seluruh test domain lulus.
+### Fase 2 — Skema PostgreSQL dan otorisasi Laravel
+- [x] **T-020 \[P0\]** Buat migration PostgreSQL untuk seluruh entitas, tipe data, index, dan constraint.
+- [x] **T-021 \[P0\]** Buat model Eloquent dan relasi antarprofil, anggota, simpanan, pengajuan, pinjaman, jadwal, dan pembayaran.
+- [x] **T-022 \[P0\]** Tambahkan index, foreign key, unique constraint, dan query scope sesuai pola akses halaman.
+- [x] **T-023 \[P0\]** Implementasikan otorisasi deny-by-default dengan middleware, Policy/Gate, dan Form Request Laravel.
+- [x] **T-024 \[P0\]** Implementasikan isolasi data anggota berdasarkan akun yang terhubung.
+- [x] **T-025 \[P0\]** Implementasikan akses staff, approver, dan admin sesuai matriks.
+- [x] **T-026 \[P0\]** Buat data uji dua anggota, satu staff, satu approver, dan satu admin.
+- [x] **T-027 \[P0\]** Uji anggota A tidak dapat membaca atau mengubah data anggota B.
+- [x] **T-028 \[P0\]** Uji staff tidak dapat mengubah role atau melakukan approval tanpa hak.
+- [x] **T-029 \[P0\]** Dokumentasikan penggunaan transaksi PostgreSQL, isolation/locking, unique constraint, queue, dan strategi idempotensi.
+**Dependency:** T-014, T-018, PHP 8.5, dan akses PostgreSQL lokal.  
+**Definition of done:** migration dan seeder berjalan bersih; seluruh test otorisasi dan constraint kritis lulus.
+### Fase 3 — Autentikasi dan profil
+- [x] **T-030 \[P0\]** Buat halaman login email OTP/magic code.
+- [x] **T-031 \[P0\]** Implementasikan verifikasi kode dan pemulihan sesi.
+- [x] **T-032 \[P0\]** Implementasikan load profile setelah login.
+- [x] **T-033 \[P0\]** Buat status akun belum dikonfigurasi, suspended, dan inactive.
+- [x] **T-034 \[P0\]** Buat redirect serta navigasi berdasarkan role.
+- [x] **T-035 \[P0\]** Buat logout dan penanganan sesi kedaluwarsa.
+- [x] **T-036 \[P0\]** Buat route guard anggota/admin sebagai lapisan UX.
+- [x] **T-037 \[P0\]** Uji login berhasil, kode salah, sesi kedaluwarsa, dan akses ditolak.
+**Dependency:** T-020–T-029.  
+**Definition of done:** setiap role masuk ke area yang benar dan akses backend tetap terlindungi.
+### Fase 4 — Pengguna, anggota, dan produk
+- [x] **T-038 \[P0\]** Buat daftar pengguna, filter role/status, dan penghubung akun-anggota.
+- [x] **T-039 \[P0\]** Buat aksi perubahan role/status dengan konfirmasi dan audit.
+- [x] **T-040 \[P0\]** Buat daftar anggota dengan query terbatas, pencarian, filter, dan sorting.
+- [x] **T-041 \[P0\]** Buat form tambah/edit anggota dengan validasi serta cek duplikasi.
+- [x] **T-042 \[P0\]** Buat detail anggota dengan tab profil, simpanan, pinjaman, dan aktivitas.
+- [x] **T-043 \[P0\]** Buat aktivasi/suspend/nonaktif anggota dengan alasan.
+- [x] **T-044 \[P0\]** Buat CRUD produk simpanan.
+- [x] **T-045 \[P0\]** Buat CRUD produk pinjaman dan validasi batas nominal/tenor.
+- [x] **T-046 \[P0\]** Pastikan produk nonaktif tidak muncul pada transaksi baru.
+- [x] **T-047 \[P0\]** Uji role, validasi anggota, duplikasi, dan perubahan produk terhadap histori.
+**Dependency:** autentikasi, permission, dan komponen form.  
+**Definition of done:** admin dapat mengelola akses/produk dan petugas dapat mengelola anggota tanpa merusak histori.
+### Fase 5 — Simpanan
+- [x] **T-048 \[P0\]** Buat daftar transaksi simpanan dan filter periode/anggota/produk/status.
+- [x] **T-049 \[P0\]** Buat form setoran dengan nomor transaksi dan idempotency key.
+- [x] **T-050 \[P0\]** Buat form penarikan sukarela dengan validasi saldo minimum.
+- [x] **T-051 \[P0\]** Implementasikan preview dan posting transaksi.
+- [x] **T-052 \[P0\]** Implementasikan void/reversal dengan alasan wajib.
+- [x] **T-053 \[P0\]** Buat query/helper saldo per anggota dan produk dari transaksi posted.
+- [x] **T-054 \[P0\]** Buat riwayat simpanan anggota.
+- [x] **T-055 \[P1\]** Buat bukti transaksi dan print stylesheet.
+- [x] **T-056 \[P1\]** Buat ekspor CSV transaksi sesuai filter.
+- [x] **T-057 \[P0\]** Uji double click, referensi duplikat, saldo tidak cukup, posting, dan reversal.
+**Dependency:** anggota aktif dan produk simpanan.  
+**Definition of done:** saldo dapat direkonsiliasi dengan transaksi posted dan koreksi tidak menghapus histori.
+### Fase 6 — Pengajuan dan approval
+- [x] **T-058 \[P0\]** Buat simulasi pinjaman berdasarkan produk.
+- [x] **T-059 \[P0\]** Buat form/wizard pengajuan dan penyimpanan draft.
+- [x] **T-060 \[P1\]** Buat upload serta validasi dokumen pendukung.
+- [x] **T-061 \[P0\]** Implementasikan submit dan cancel sesuai state machine.
+- [x] **T-062 \[P0\]** Buat daftar/detail pengajuan anggota dan timeline status.
+- [x] **T-063 \[P0\]** Buat antrean pengajuan untuk staff/approver.
+- [x] **T-064 \[P0\]** Buat checklist review dan catatan internal.
+- [x] **T-065 \[P0\]** Implementasikan approve dengan snapshot nilai, tenor, dan bunga.
+- [x] **T-066 \[P0\]** Implementasikan reject dengan alasan wajib.
+- [x] **T-067 \[P1\]** Buat notifikasi perubahan status.
+- [x] **T-068 \[P0\]** Uji seluruh transisi, concurrent decision, akses dokumen, dan isolasi anggota.
+**Dependency:** produk pinjaman, kalkulator, anggota aktif, dan permission.  
+**Definition of done:** alur draft hingga approved/rejected berjalan dan keputusan ganda ditolak.
+### Fase 7 — Pencairan, jadwal, dan pembayaran
+- [x] **T-069 \[P0\]** Buat halaman verifikasi pencairan.
+- [x] **T-070 \[P0\]** Implementasikan nomor pinjaman dan idempotency key pencairan.
+- [x] **T-071 \[P0\]** Implementasikan operasi pencairan dan pembuatan jadwal sebagai satu unit logis.
+- [x] **T-072 \[P0\]** Buat detail pinjaman, snapshot kontrak, dan tabel jadwal.
+- [x] **T-073 \[P1\]** Buat bukti pencairan dan cetak jadwal.
+- [x] **T-074 \[P0\]** Buat pencarian tagihan berdasarkan anggota/nomor pinjaman.
+- [x] **T-075 \[P0\]** Buat form pembayaran pending dan preview allocation.
+- [x] **T-076 \[P0\]** Implementasikan alokasi oldest-due-first.
+- [x] **T-077 \[P0\]** Implementasikan posting pembayaran serta pembaruan jadwal/outstanding.
+- [x] **T-078 \[P0\]** Implementasikan status `partial`, `paid`, `overdue`, dan `paid_off`.
+- [x] **T-079 \[P0\]** Implementasikan void/reversal pembayaran.
+- [x] **T-080 \[P1\]** Buat bukti pembayaran.
+- [x] **T-081 \[P0\]** Uji pembayaran sebagian, penuh, berlebih, ganda, void, dan pelunasan.
+- [x] **T-082 \[P0\]** Buat test rekonsiliasi total payable, allocations, dan outstanding.
+**Dependency:** pengajuan approved dan kalkulator teruji.  
+**Definition of done:** pencairan/pembayaran aman di-retry dan seluruh angka dapat direkonsiliasi.
+### Fase 8 — Dashboard, tunggakan, laporan, dan audit
+- [x] **T-083 \[P0\]** Buat dashboard anggota.
+- [x] **T-084 \[P0\]** Buat dashboard pengurus dengan filter periode.
+- [x] **T-085 \[P1\]** Buat daftar overdue dan aging bucket.
+- [x] **T-086 \[P1\]** Buat catatan tindak lanjut penagihan.
+- [x] **T-087 \[P0\]** Buat laporan anggota, saldo simpanan, dan mutasi.
+- [x] **T-088 \[P0\]** Buat laporan pengajuan, pinjaman aktif, jatuh tempo, dan pembayaran.
+- [x] **T-089 \[P1\]** Buat laporan tunggakan dan pencairan.
+- [x] **T-090 \[P0\]** Buat helper filter bersama untuk tampilan, total, dan ekspor.
+- [x] **T-091 \[P0\]** Buat ekspor CSV.
+- [x] **T-092 \[P0\]** Implementasikan audit log untuk seluruh aksi wajib.
+- [x] **T-093 \[P0\]** Buat halaman audit log dengan filter dan akses admin.
+- [x] **T-094 \[P0\]** Uji rekonsiliasi dashboard/laporan dengan transaksi detail.
+**Dependency:** fitur transaksi utama selesai.  
+**Definition of done:** angka dashboard dan laporan sama dengan data detail pada skenario uji.
+### Fase 9 — Pengaturan, hardening, dan aksesibilitas
+- [x] **T-095 \[P1\]** Buat profil dan pengaturan identitas koperasi.
+- [x] **T-096 \[P1\]** Buat konfigurasi format nomor serta teks bukti transaksi.
+- [x] **T-097 \[P0\]** Audit permission seluruh entitas dengan deny-by-default.
+- [x] **T-098 \[P0\]** Audit PII pada UI, log, error, dan ekspor.
+- [x] **T-099 \[P0\]** Uji horizontal dan vertical privilege escalation.
+- [x] **T-100 \[P0\]** Uji double click, retry jaringan, concurrent update, dan data duplikat.
+- [x] **T-101 \[P0\]** Audit keyboard navigation, focus, label, kontras, dan mobile 360px.
+- [x] **T-102 \[P0\]** Optimalkan query realtime dan batasi dataset besar.
+- [x] **T-103 \[P0\]** Jalankan lint, type-check, unit, integration, E2E, dan production build.
+**Dependency:** seluruh fitur P0.  
+**Definition of done:** tidak ada temuan kritis keamanan, rekonsiliasi, aksesibilitas, atau build.
+### Fase 10 — Deployment CloudPanel
+- [x] **T-104 \[P0\]** Siapkan application/site di CloudPanel untuk `kpri.mtsn3padang.sch.id`.
+- [x] **T-105 \[P0\]** Konfigurasikan PHP 8.5, Composer, Node.js untuk build Vite, document root `public/`, dan perintah deploy Laravel.
+- [x] **T-106 \[P0\]** Pasang environment production tanpa secret di repository.
+- [x] **T-107 \[P0\]** Konfigurasikan PHP-FPM 8.5 serta Supervisor/systemd untuk queue worker dengan auto-restart.
+- [x] **T-108 \[P0\]** Konfigurasikan Nginx untuk melayani `public/`, meneruskan PHP ke PHP-FPM 8.5, dan menjaga header proxy yang aman.
+- [x] **T-109 \[P0\]** Aktifkan SSL dan redirect HTTP ke HTTPS.
+- [x] **T-110 \[P0\]** Jalankan migration PostgreSQL secara terkontrol dan verifikasi strategi rollback/backup.
+- [x] **T-111 \[P0\]** Jalankan smoke test domain, asset, login, role, query, dan operasi baca.
+- [x] **T-112 \[P0\]** Verifikasi log tidak membocorkan konfigurasi atau PII.
+- [x] **T-113 \[P0\]** Dokumentasikan deploy, rollback, restart, dan pemeriksaan kesehatan.
+- [x] **T-114 \[P0\]** Lakukan user acceptance test dengan data non-produksi.
+**Dependency:** T-095–T-103 selesai.  
+**Definition of done:** domain produksi sehat, SSL valid, role bekerja, test penerimaan lulus, dan rollback terdokumentasi.
+### Fase 8A — Jurnal, SHU, dan laporan keuangan (Standar Permenkop UKM / SAK ETAP)
+- [x] **T-115 \[P0\]** Buat chart of accounts baku Permenkop UKM No. 13/Per/M.KUKM/IX/2015 & SAK ETAP, migration akun, jurnal, baris jurnal, constraint, dan seeder akun non-sensitif.
+- [x] **T-116 \[P0\]** Implementasikan `JournalService`, model Eloquent jurnal, aturan jurnal berpasangan, source uniqueness, posting, serta reversal.
+- [x] **T-117 \[P0\]** Integrasikan jurnal otomatis ke setoran/penarikan simpanan, pencairan, pembayaran, void, dan reversal.
+- [x] **T-118 \[P0\]** Uji setiap jurnal seimbang, retry tidak menggandakan jurnal, serta transaksi gagal tidak meninggalkan jurnal parsial.
+- [x] **T-119 \[P1\]** Buat buku besar dan neraca saldo per periode melalui `ReportService` dan Query Object.
+- [x] **T-120 \[P1\]** Buat migration periode/distribusi SHU beserta status, snapshot formula, dan constraint.
+- [x] **T-121 \[P1\]** Implementasikan `SHUService` untuk kalkulasi, alokasi anggota, approval, distribusi, dan jurnal otomatis.
+- [x] **T-122 \[P1\]** Uji rekonsiliasi total distribusi SHU dengan nilai yang tersedia serta penanganan selisih pembulatan.
+- [x] **T-123 \[P1\]** Tambahkan laporan keuangan: jurnal umum, buku besar, neraca saldo, dan ringkasan SHU.
+
+#### Standar Chart of Accounts (COA) Koperasi (Permenkop UKM & SAK ETAP/EP)
+| Kode Akun | Nama Akun (COA) | Kategori Akun | Posisi Normal | Keterangan / Kegunaan Transaksi |
+| :--- | :--- | :--- | :--- | :--- |
+| **1110** | Kas Kantor Koperasi | Aset (Lancar) | Debit | Kas tunai penerimaan/pembayaran kantor |
+| **1120** | Bank Rekening Utama Koperasi | Aset (Lancar) | Debit | Rekening bank utama penerimaan & pencairan |
+| **1130** | Piutang Pinjaman Reguler Anggota | Aset (Lancar) | Debit | Saldo pokok piutang pinjaman biasa anggota |
+| **1131** | Piutang Pinjaman Darurat Anggota | Aset (Lancar) | Debit | Saldo pokok piutang pinjaman cepat anggota |
+| **1132** | Piutang Pinjaman Pendidikan | Aset (Lancar) | Debit | Saldo pokok piutang pinjaman khusus pendidikan |
+| **1140** | Penyisihan Penghapusan Piutang (KAP) | Aset (Kontra) | Kredit | Cadangan risiko/penyisihan piutang ragu-ragu |
+| **1210** | Aset Tetap - Peralatan & Komputer | Aset (Tetap) | Debit | Aset fisik inventaris kantor koperasi |
+| **1211** | Akumulasi Penyusutan Aset Tetap | Aset (Kontra) | Kredit | Akumulasi penyusutan aset tetap inventaris |
+| **2110** | Simpanan Sukarela Anggota | Kewajiban (Lancar) | Kredit | Tabungan/simpanan sukarela anggota yang dapat ditarik |
+| **2120** | Utang Bunga Simpanan Anggota | Kewajiban (Lancar) | Kredit | Akrual kewajiban bunga simpanan anggota |
+| **2130** | Titipan Dana Bagian SHU Anggota | Kewajiban (Lancar) | Kredit | Alokasi bagian SHU anggota yang belum ditarik |
+| **2140** | Utang Bank / Pihak Ketiga | Kewajiban (J.Panjang) | Kredit | Kewajiban pinjaman modal dari bank/pembiayaan |
+| **3110** | Simpanan Pokok Anggota | Ekuitas Koperasi | Kredit | Modal simpanan pokok awal anggota |
+| **3120** | Simpanan Wajib Anggota | Ekuitas Koperasi | Kredit | Modal simpanan wajib bulanan anggota |
+| **3130** | Modal Penyertaan / Hibah | Ekuitas Koperasi | Kredit | Modal penyertaan luar / donasi / hibah |
+| **3210** | Cadangan Koperasi | Ekuitas Koperasi | Kredit | Alokasi dana cadangan hasil usaha koperasi |
+| **3310** | SHU Belum Dibagi (Tahun Berjalan)| Ekuitas Koperasi | Kredit | Sisa Hasil Usaha periode berjalan |
+| **4110** | Pendapatan Jasa Pinjaman Anggota | Pendapatan | Kredit | Realisasi pendapatan bunga/jasa pinjaman |
+| **4120** | Pendapatan Denda Keterlambatan | Pendapatan | Kredit | Realisasi denda keterlambatan pembayaran |
+| **4130** | Pendapatan Administrasi & Provisi | Pendapatan | Kredit | Biaya administrasi & provisi pencairan |
+| **5110** | Beban Bunga Simpanan Sukarela | Beban | Debit | Beban balasan jasa simpanan sukarela anggota |
+| **5120** | Beban Penyisihan Penghapusan Piutang| Beban | Debit | Alokasi beban penyisihan piutang tak tertagih |
+| **5210** | Beban Gaji & Honor Pengurus/Karyawan| Beban | Debit | Gaji, insentif, dan honorarium pengelola |
+| **5220** | Beban Operasional Kantor & ATK | Beban | Debit | Beban listrik, air, internet, ATK & sewa |
+| **5230** | Beban Penyusutan Aset Tetap | Beban | Debit | Alokasi beban penyusutan peralatan kantor |
+| **5310** | Beban Perkoperasian & RAT | Beban | Debit | Biaya penyelenggaraan Rapat Anggota Tahunan |
+
+**Dependency:** transaksi simpanan, pinjaman, pembayaran, chart of accounts, dan kebijakan formula SHU.  
+**Definition of done:** seluruh transaksi sumber menghasilkan jurnal yang seimbang dan idempotent; buku besar/neraca saldo dapat ditelusuri ke transaksi; kalkulasi serta distribusi SHU tersimpan sebagai snapshot dan dapat direkonsiliasi.
+### Task pasca-MVP
+- [x] **T-201 \[P2\]** Impor anggota/transaksi melalui CSV dengan preview.
+- [x] **T-202 \[P2\]** Approval pinjaman bertingkat.
+- [x] **T-203 \[P2\]** Restrukturisasi jadwal pinjaman.
+- [x] **T-204 \[P2\]** Pelunasan dipercepat dengan formula final.
+- [x] **T-205 \[P2\]** Integrasi email/WhatsApp.
+- [x] **T-206 \[P2\]** Rekap janji bayar dan workflow kolektor.
+- [x] **T-207 \[P2\]** Integrasi payment gateway/virtual account.
+- [x] **T-208 \[P2\]** Integrasi aplikasi akuntansi eksternal dan laporan keuangan lanjutan setelah jurnal internal stabil.
+### Checklist penyelesaian setiap task
+- [x] Acceptance criteria task terpenuhi.
+- [x] Permission dan validasi negatif diuji bila task menyentuh data.
+- [x] Unit/integration/E2E test ditambahkan sesuai risiko.
+- [x] Loading, empty, error, dan success state tersedia.
+- [x] Toast notification umpan balik visual (success/error/warning/info) tersedia untuk setiap aksi pengguna.
+- [x] Tampilan mobile dan keyboard diperiksa.
+- [x] Tidak ada secret atau PII sensitif pada commit/log.
+- [x] Lint dan type-check lulus.
+- [x] Dokumentasi dan keputusan teknis diperbarui.
+### Urutan eksekusi Antigravity
+1. Pilih satu fase dan task dengan dependency yang sudah selesai.
+2. Minta Antigravity menampilkan rencana, asumsi, file terdampak, serta test yang akan dibuat.
+3. Kerjakan task dalam batch kecil, idealnya 3–6 task yang saling berkaitan.
+4. Jalankan test terkait setelah setiap batch.
+5. Lakukan review terhadap permission, transaksi uang, dan state transition.
+6. Tandai task Done hanya jika checklist penyelesaian terpenuhi.
+7. Berhenti di akhir fase untuk review manual sebelum melanjutkan.
+## 7. Model data PostgreSQL dan Eloquent
+Gunakan UUID/ULID sebagai primary identifier yang dikelola Laravel dan PostgreSQL. Simpan nominal uang sebagai **integer rupiah**, bukan floating point. Semua waktu disimpan sebagai ISO datetime; tampilan mengikuti Asia/Jakarta.
+### `profiles`
+- `userId`: identitas akun autentikasi.
+- `fullName`, `email`, `phone`, `address`.
+- `role`: `member | staff | approver | admin`.
+- `status`: `active | suspended | inactive`.
+- `createdAt`, `updatedAt`.
+### `members`
+- `memberNo` unik.
+- Relasi satu-ke-satu ke `profiles` bila anggota memiliki akun.
+- `identityNo`, `birthDate`, `joinDate`.
+- `occupation`, `address`.
+- `status`: `pending | active | suspended | inactive`.
+- `createdAt`, `updatedAt`.
+### `savingsProducts`
+- `code`, `name`.
+- `type`: `principal | mandatory | voluntary`.
+- `defaultAmount`, `minimumBalance`.
+- `isActive`, `createdAt`, `updatedAt`.
+### `savingsTransactions`
+- Relasi ke `members` dan `savingsProducts`.
+- `referenceNo` unik.
+- `type`: `deposit | withdrawal | adjustment`.
+- `amount` integer rupiah.
+- `transactionDate`, `description`.
+- `status`: `pending | posted | void`.
+- Relasi ke `createdBy`, `postedBy`, dan transaksi pembalik bila ada.
+- `createdAt`, `postedAt`, `voidedAt`.
+### `loanProducts`
+- `code`, `name`.
+- `minAmount`, `maxAmount`.
+- `minTermMonths`, `maxTermMonths`.
+- `interestMethod`: `flat` untuk MVP.
+- `annualInterestRate` dalam basis points atau nilai desimal yang disepakati konsisten.
+- `lateFeeType`, `lateFeeValue` untuk konfigurasi awal.
+- `isActive`, `createdAt`, `updatedAt`.
+### `loanApplications`
+- Relasi ke `members` dan `loanProducts`.
+- `applicationNo` unik.
+- `requestedAmount`, `requestedTermMonths`, `purpose`.
+- `status`: `draft | submitted | under_review | approved | rejected | cancelled | disbursed`.
+- `approvedAmount`, `approvedTermMonths`, `approvedAnnualRate`.
+- `reviewNotes`, `decisionReason`.
+- Relasi ke `reviewedBy`, `approvedBy`.
+- `submittedAt`, `decidedAt`, `createdAt`, `updatedAt`.
+### `loans`
+- Relasi satu-ke-satu ke pengajuan yang dicairkan dan relasi ke anggota.
+- `loanNo` unik.
+- `principalAmount`, `termMonths`, `annualInterestRate`.
+- `interestMethod`: `flat`.
+- `totalInterest`, `totalPayable`, `outstandingAmount`.
+- `disbursementDate`, `firstDueDate`.
+- `status`: `active | paid_off | delinquent | restructured | written_off`.
+- `createdAt`, `updatedAt`.
+### `installments`
+- Relasi ke `loans`.
+- `sequenceNo`, `dueDate`.
+- `principalDue`, `interestDue`, `lateFeeDue`, `totalDue`.
+- `paidAmount`, `remainingAmount`.
+- `status`: `unpaid | partial | paid | overdue`.
+- `paidAt`, `createdAt`, `updatedAt`.
+- Kombinasi `loanId + sequenceNo` harus unik secara logika.
+### `payments`
+- Relasi ke `loans`, `members`, dan `receivedBy`.
+- `paymentNo` unik.
+- `paymentDate`, `amount`, `method`.
+- `reference`, `notes`.
+- `status`: `pending | posted | void`.
+- `createdAt`, `postedAt`, `voidedAt`.
+### `paymentAllocations`
+- Relasi ke `payments` dan `installments`.
+- `principalAmount`, `interestAmount`, `lateFeeAmount`.
+- `createdAt`.
+### `attachments`
+- Relasi opsional ke anggota atau pengajuan.
+- `fileName`, `fileUrl`, `mimeType`, `size`.
+- `category`, `uploadedAt`, relasi ke `uploadedBy`.
+### `notifications`
+- Relasi ke profil penerima.
+- `type`, `title`, `message`, `targetUrl`.
+- `isRead`, `createdAt`, `readAt`.
+### `accounts`
+- `code` dan `name` unik.
+- `type`: `asset | liability | equity | revenue | expense`.
+- `normalBalance`: `debit | credit`.
+- Relasi opsional ke akun induk; `isActive`, `createdAt`, `updatedAt`.
+### `journalEntries`
+- `journalNo` unik, `entryDate`, `description`, dan status `draft | posted | reversed`.
+- `sourceType` dan `sourceId` menghubungkan jurnal ke transaksi asal; kombinasi sumber aktif harus unik.
+- Relasi ke jurnal pembalik, `postedBy`, `postedAt`, `createdAt`, dan `updatedAt`.
+### `journalLines`
+- Relasi ke `journalEntries` dan `accounts`.
+- `debitAmount` dan `creditAmount` berupa integer rupiah; tepat satu sisi harus bernilai lebih besar dari nol.
+- Total debit dan kredit per jurnal wajib seimbang sebelum posting.
+### `shuPeriods`
+- `periodStart`, `periodEnd`, `netSurplus`, dan status `draft | calculated | approved | distributed`.
+- Snapshot formula, persentase dana cadangan, jasa modal, jasa usaha, dana pengurus/karyawan, pendidikan, sosial, dan komponen lain yang disahkan.
+- Relasi ke aktor kalkulasi, approver, serta waktu kalkulasi/persetujuan/distribusi.
+### `shuDistributions`
+- Relasi ke `shuPeriods` dan `members`.
+- `capitalServiceAmount`, `businessServiceAmount`, `otherAmount`, `totalAmount`, serta dasar perhitungan dalam JSON tersanitasi.
+- Status `pending | posted | paid | void`; kombinasi periode dan anggota unik.
+- Relasi ke jurnal dan pembayaran bila distribusi dibayarkan.
+### `auditLogs`
+- Relasi ke aktor.
+- `action`, `entityType`, `entityId`.
+- `before`, `after` dalam JSON yang sudah disanitasi.
+- `ipAddress` bila tersedia di server tepercaya.
+- `createdAt`.
+## 8. Aturan bisnis inti
+### Perhitungan bunga flat MVP
+- Bunga total = pokok × bunga tahunan × tenor bulan ÷ 12.
+- Pokok per bulan = pokok ÷ tenor.
+- Bunga per bulan = bunga total ÷ tenor.
+- Angsuran per bulan = pokok per bulan + bunga per bulan.
+- Selisih pembulatan rupiah dialokasikan pada angsuran terakhir.
+- Snapshot nilai bunga dan tenor disimpan pada pinjaman agar perubahan produk tidak mengubah kontrak yang sudah berjalan.
+### Transisi status pengajuan
+```plain text
+draft → submitted → under_review → approved → disbursed
+                  ↘ rejected
+
+draft/submitted → cancelled (oleh pemohon selama belum diputuskan)
+```
+### Transisi transaksi finansial
+```plain text
+pending → posted → void/reversal
+```
+- Transaksi `posted` tidak boleh diedit langsung.
+- Void wajib menyimpan aktor, waktu, dan alasan.
+- Semua tindakan finansial harus idempotent untuk mencegah pencatatan ganda.
+## 9. Hak akses dan keamanan
+- Terapkan least privilege melalui middleware, Policy/Gate, query scope, dan hak akses PostgreSQL.
+- Anggota hanya membaca profil, simpanan, pengajuan, pinjaman, jadwal, pembayaran, dan notifikasi milik sendiri.
+- Anggota hanya dapat membuat/mengubah pengajuan berstatus `draft`, lalu melakukan submit.
+- `staff` dapat mengelola anggota dan memasukkan transaksi, tetapi tidak menyetujui pengajuan kecuali juga memiliki peran approver.
+- `approver` dapat memutuskan pengajuan, tetapi pencairan dapat dibatasi ke staff/admin untuk pemisahan tugas.
+- Hanya admin yang mengelola role dan konfigurasi produk.
+- Validasi otorisasi tidak boleh hanya mengandalkan middleware atau UI; aturan akses backend tetap menjadi sumber kebenaran.
+- Jangan log OTP, token, nomor identitas lengkap, atau informasi sensitif lain.
+- Masking nomor identitas di daftar dan laporan umum.
+- Gunakan CSP, cookie sesi `HttpOnly`/`Secure`/`SameSite`, CSRF, Laravel Form Request, Zod untuk UX klien, rate limiting endpoint sensitif, dan audit log.
+- Konfirmasi eksplisit diperlukan sebelum aksi pencairan, posting pembayaran, void, dan perubahan role.
+## 10. Arsitektur teknis
+### Stack yang disarankan
+- **Laravel 13 pada PHP 8.5** untuk routing, autentikasi, validasi, otorisasi, queue, scheduler, transaksi aplikasi, dan dependency injection.
+- **Inertia.js v3** sebagai adapter antara Laravel dan React tanpa API SPA terpisah; gunakan partial reload, deferred props, shared data yang aman, dan form helper sesuai kebutuhan.
+- **React 19 + TypeScript strict** untuk halaman, komponen, form, state UI, error boundary, dan pengalaman interaktif.
+- **PostgreSQL 18** sebagai database utama dengan foreign key, unique/check constraint, index, transaksi, row locking, dan strategi idempotensi.
+- **Tailwind CSS** untuk design system, layout responsif, state, dan print stylesheet.
+- Nginx sebagai reverse proxy/web server ke PHP-FPM 8.5; Vite untuk development dan build React/TypeScript/Tailwind CSS.
+- Laravel Form Request untuk validasi server; Zod dapat digunakan untuk validasi UX di React tanpa menggantikan server.
+- Pest/PHPUnit untuk unit, service, repository integration, dan feature test; Vitest/React Testing Library untuk frontend; Playwright untuk end-to-end test.
+### Service Layer
+- Controller Laravel menerima request Inertia.js, memeriksa otorisasi tingkat endpoint, memanggil service, lalu mengirim page props minimal ke halaman React.
+- **Service Layer** merepresentasikan use case, mengorkestrasi aturan bisnis, menentukan batas transaksi PostgreSQL, memanggil Policy bila diperlukan, menerbitkan event setelah commit, dan tidak bergantung pada detail UI.
+- Service boleh menggunakan Eloquent model dan query builder secara langsung untuk operasi sederhana; query kompleks atau laporan ditempatkan dalam Query Object agar dapat digunakan ulang dan diuji.
+- Controller dan komponen React tidak boleh menerima query builder atau menjalankan query database.
+- DTO/command object digunakan pada batas UI–service. Model Eloquent tidak dikirim sebagai payload bebas ke komponen React.
+- Kalkulasi pinjaman, alokasi, dan state transition tetap berupa domain service/pure object yang dapat diuji tanpa database.
+- Operasi finansial menggunakan `DB::transaction()` di Service Layer; locking, idempotency, validasi status terakhir, dan audit diterapkan di service terkait.
+- Constructor injection tetap digunakan untuk dependency lintas layanan seperti kalkulator, generator nomor, penyimpanan file, clock, dan notification gateway.
+### Struktur folder
+```plain text
+app/
+  Domain/
+    Common/
+    Members/
+    Savings/
+    Loans/
+  DTOs/
+  Enums/
+  Events/
+  Exceptions/
+  Http/
+    Controllers/
+    Middleware/
+    Requests/
+  Inertia/
+    Middleware/
+  Http/
+    Resources/
+  Models/
+  Policies/
+  Queries/
+    Dashboard/
+    Reports/
+  Services/
+    Auth/
+    Members/
+      MemberService.php
+    Savings/
+      SavingService.php
+    Loans/
+      LoanService.php
+      InstallmentService.php
+    Accounting/
+      JournalService.php
+      SHUService.php
+    Reports/
+      ReportService.php
+  Providers/
+    AppServiceProvider.php
+database/
+  factories/
+  migrations/
+  seeders/
+resources/
+  views/
+    app.blade.php
+  css/
+    app.css
+  js/
+    app.tsx
+    Components/
+    Features/
+    Layouts/
+    Pages/
+      Auth/
+      Member/
+      Admin/
+    types/
+routes/
+  web.php
+tests/
+  Unit/
+    Domain/
+    Services/
+  Feature/
+    Inertia/
+    Services/
+    Authorization/
+  Browser/
+.env.example
+```
+### Aturan dependensi
+```plain text
+React 19 / Inertia.js v3 → Laravel Controller → Service Layer → Eloquent / Query Object → PostgreSQL 18
+                               ↓
+                    Domain Service / DTO / Enum
+```
+- Lapisan di sebelah kanan tidak boleh bergantung pada UI.
+- Satu use case publik idealnya memiliki satu method service yang jelas, misalnya `PostSavingsTransactionService::execute()` atau `DisburseLoanService::execute()`.
+- Test unit mencakup domain service dan kalkulator murni; test feature/integrasi Service Layer menggunakan PostgreSQL 18 beserta constraint nyata.
+### Konfigurasi environment
+```bash
+APP_NAME="Koperasi Simpan Pinjam"
+APP_ENV=local
+APP_URL=http://koperasi.test
+APP_TIMEZONE=Asia/Jakarta
+APP_LOCALE=id
+
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=koperasi
+DB_USERNAME=koperasi
+DB_PASSWORD=
+
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+```
+Nilai `APP_KEY`, kredensial PostgreSQL 18, SMTP, dan secret lain hanya disimpan di `.env` lokal/server dan tidak boleh masuk repository kode. Nginx mengarahkan `koperasi.test` ke direktori `public/` Laravel dan meneruskan request PHP ke PHP-FPM 8.5. Vite digunakan untuk HMR dan build aset Inertia.js v3, React 19, TypeScript, serta Tailwind CSS.
+## 11. Workflow pengguna
+### A. Onboarding anggota
+1. Petugas membuka **Admin → Anggota → Tambah anggota**.
+2. Petugas mengisi identitas dan kontak.
+3. Sistem memvalidasi nomor anggota, email, dan nomor identitas.
+4. Data dibuat dengan status `pending`.
+5. Admin/petugas berwenang memverifikasi kelengkapan.
+6. Status diubah menjadi `active`.
+7. Sistem membuat audit log dan mengirim notifikasi aktivasi bila akun tersedia.
+### B. Pencatatan simpanan
+1. Petugas memilih anggota dan produk simpanan.
+2. Petugas memasukkan nominal, tanggal, metode, dan referensi.
+3. Sistem membuat transaksi `pending` dan memeriksa duplikasi referensi.
+4. Petugas berwenang melakukan **Post transaksi**.
+5. Sistem mengubah status menjadi `posted` secara atomik.
+6. Saldo anggota dan dashboard diperbarui setelah transaksi berhasil melalui redirect, partial reload, atau re-fetch props Inertia.js; polling atau broadcast ditambahkan hanya bila diperlukan.
+7. Bukti transaksi tersedia dan audit log dibuat.
+### C. Pengajuan pinjaman
+1. Anggota membuka **Pinjaman → Ajukan pinjaman**.
+2. Anggota memilih produk, nominal, tenor, tujuan, dan lampiran.
+3. Sistem menampilkan simulasi angsuran.
+4. Pengajuan disimpan sebagai `draft`.
+5. Anggota menekan **Kirim pengajuan** setelah konfirmasi.
+6. Sistem memvalidasi keanggotaan aktif dan batas produk.
+7. Status menjadi `submitted`; petugas menerima notifikasi.
+### D. Review dan persetujuan
+1. Petugas membuka antrean pengajuan `submitted`.
+2. Petugas memeriksa data, simpanan, kewajiban aktif, dan dokumen.
+3. Status menjadi `under_review`.
+4. Approver memasukkan hasil keputusan.
+5. Jika ditolak, status menjadi `rejected` dan alasan wajib diisi.
+6. Jika disetujui, simpan nilai, tenor, bunga, dan catatan persetujuan sebagai snapshot.
+7. Status menjadi `approved`; anggota menerima notifikasi.
+### E. Pencairan
+1. Petugas membuka pengajuan `approved`.
+2. Petugas memeriksa kembali nilai, rekening tujuan, dan tanggal pencairan.
+3. Sistem meminta konfirmasi eksplisit.
+4. Dalam satu operasi idempotent, sistem membuat `loan`, membuat seluruh `installments`, dan mengubah pengajuan menjadi `disbursed`.
+5. Nomor pinjaman dan nomor jadwal dibuat unik.
+6. Audit log dan notifikasi dibuat.
+### F. Pembayaran angsuran
+1. Petugas mencari anggota atau nomor pinjaman.
+2. Sistem menampilkan tunggakan dan tagihan terdekat.
+3. Petugas memasukkan nominal dan referensi pembayaran.
+4. Sistem membuat pembayaran `pending`.
+5. Saat di-posting, nominal dialokasikan ke jadwal paling lama jatuh tempo.
+6. Sistem memperbarui `paidAmount`, `remainingAmount`, status jadwal, dan outstanding pinjaman secara atomik.
+7. Jika outstanding menjadi nol, status pinjaman menjadi `paid_off`.
+8. Bukti pembayaran dan audit log dibuat.
+### G. Penanganan keterlambatan
+1. Saat halaman operasional dibuka atau melalui proses terjadwal yang tersedia, sistem mengevaluasi jadwal dengan `dueDate` lewat dan sisa tagihan lebih dari nol.
+2. Jadwal ditandai `overdue`; pinjaman dapat ditandai `delinquent`.
+3. Dashboard menampilkan daftar tunggakan.
+4. Petugas menindaklanjuti dan mencatat pembayaran atau keputusan manual.
+## 12. Workflow pengerjaan di Antigravity
+Gunakan tahapan berikut sebagai aturan kerja agent. Jangan meminta agent membangun seluruh aplikasi dalam satu prompt besar.
+### Fase 0 — Bootstrap
+**Tujuan:** proyek dapat dijalankan melalui domain lokal.
+- Gunakan folder proyek `/home/naval/www/koperasi.test` sebagai working directory. Jangan membuat proyek di folder lain.
+- Jika folder belum berisi proyek, buat Laravel 13 pada PHP 8.5 lalu pasang Inertia.js v3, React 19, TypeScript strict, Tailwind CSS, dan Vite langsung di folder tersebut. Jika sudah berisi proyek, audit isi dan pertahankan file yang masih relevan.
+- Pasang Pest/PHPUnit, Vitest, React Testing Library, Playwright, PHPStan/Larastan, Pint, ESLint, dan dependensi UI yang kompatibel.
+- Sesuaikan `.env.example`; simpan `APP_KEY`, kredensial PostgreSQL 18, dan nilai aktual hanya di `.env` lokal.
+- Buat migration awal; konfigurasikan PostgreSQL 18, session, queue, autentikasi Laravel, middleware Inertia.js, model Eloquent, dan fondasi Service Layer.
+- Konfigurasi `koperasi.test` melalui Nginx reverse proxy ke PHP-FPM 8.5; gunakan Vite untuk HMR React/TypeScript/Tailwind CSS.
+- Buat root template Blade, app shell Inertia.js/React, halaman login, error boundary, loading state, not-found, dan unauthorized.
+**Definition of done:** aplikasi Laravel 13 + Inertia.js v3 + React 19 terbuka di `koperasi.test`, koneksi PostgreSQL 18 dan operasi Eloquent melalui Service Layer berhasil, tidak ada secret di repository kode, serta lint, type-check, static analysis, test awal, dan build lulus.
+### Fase 1 — Domain dan skema
+- Implementasikan migration, model Eloquent, relasi, index, foreign key, dan constraint PostgreSQL.
+- Implementasikan aturan akses melalui middleware, Policy/Gate, Form Request, dan query terotorisasi Laravel.
+- Buat role dan status sebagai PHP backed enum serta DTO untuk input use case.
+- Buat Service Layer per use case, termasuk batas transaksi PostgreSQL, operasi Eloquent, Query Object untuk pembacaan kompleks, dan exception domain.
+- Buat fungsi kalkulasi pinjaman murni dan unit test.
+- Uji Service Layer serta query Eloquent terhadap PostgreSQL 18.
+- Seed hanya data produk contoh non-sensitif.
+**Definition of done:** migration/seeder PostgreSQL berjalan bersih, aturan akses Laravel diuji untuk anggota dan pengurus, serta kalkulator menangani pembulatan.
+### Fase 2 — Auth dan RBAC
+- Implementasikan login email OTP/magic link melalui Laravel dengan session cookie aman, CSRF, rate limiting, dan expiry.
+- Buat bootstrap profil setelah autentikasi.
+- Buat guard anggota dan admin.
+- Jangan hanya menyembunyikan tombol; tolak operasi pada aturan backend.
+**Definition of done:** pengguna tanpa akses ditolak, anggota tidak bisa membaca data anggota lain, admin dapat membuka area admin.
+### Fase 3 — Keanggotaan dan produk
+- CRUD anggota dengan pencarian, filter, pagination/limit, dan detail.
+- Konfigurasi produk simpanan dan pinjaman.
+- Terapkan validasi unik dan audit log.
+**Definition of done:** pengurus dapat mengaktifkan anggota dan mengonfigurasi produk tanpa mengubah data historis.
+### Fase 4 — Simpanan
+- Buat form transaksi, daftar riwayat, saldo agregat, posting, dan void.
+- Gunakan nomor referensi serta idempotency key.
+- Buat bukti transaksi yang ramah cetak.
+**Definition of done:** saldo konsisten dengan transaksi posted dan koreksi tidak menghapus sejarah.
+### Fase 5 — Pengajuan dan approval
+- Buat wizard pengajuan dan simulasi.
+- Buat antrean review serta halaman keputusan.
+- Terapkan state machine status.
+- Kirim notifikasi dalam aplikasi.
+**Definition of done:** alur draft sampai approved/rejected berjalan dan transisi tidak valid ditolak.
+### Fase 6 — Pencairan dan angsuran
+- Buat operasi pencairan atomik/idempotent.
+- Generate jadwal berdasarkan kalkulator teruji.
+- Implementasikan pembayaran sebagian dan alokasi oldest-due-first.
+- Buat detail kontrak dan bukti pembayaran.
+**Definition of done:** total jadwal sama dengan total payable dan pencatatan ulang tidak menghasilkan duplikasi.
+### Fase 7 — Dashboard dan laporan
+- Dashboard anggota dan pengurus.
+- Filter periode/status/produk/anggota.
+- Ekspor CSV dengan format nominal serta tanggal yang konsisten.
+- Tampilkan empty, loading, error, dan no-permission state.
+**Definition of done:** angka ringkasan dapat direkonsiliasi dengan data detail.
+### Fase 8 — Hardening, QA, dan deployment CloudPanel
+- Siapkan deployment Laravel 13/PHP 8.5, Inertia.js v3, React 19, dan build aset TypeScript/Tailwind CSS untuk domain `https://kpri.mtsn3padang.sch.id` di CloudPanel.
+- Konfigurasikan environment produksi, PHP-FPM 8.5, Nginx, Supervisor/systemd untuk queue worker, Laravel Scheduler, SSL, redirect HTTP ke HTTPS, dan restart policy tanpa menyimpan secret di repository.
+- Unit test: kalkulator, pembulatan, status machine, alokasi pembayaran.
+- Integration test: aturan akses dan transaksi finansial.
+- E2E: login, setoran, pengajuan, approval, pencairan, pembayaran, pelunasan.
+- Uji akses silang antaranggota.
+- Uji double click/retry, jaringan lambat, duplikasi referensi, dan pembayaran berlebih.
+- Audit accessibility dasar dan tampilan mobile.
+**Definition of done:** lint, type-check, unit, integration, dan E2E kritis lulus; tidak ada kebocoran secret/PII pada log.
+## 13. Prompt utama untuk Antigravity
+```plain text
+Anda adalah senior full-stack engineer. Bangun aplikasi web koperasi simpan pinjam berdasarkan PRD ini dengan Laravel 13, PHP 8.5, Inertia.js v3, React 19, TypeScript, PostgreSQL 18, Service Layer, Eloquent ORM, dan Nginx reverse proxy.
+
+Konfigurasi:
+- Backend=Laravel 13 pada PHP 8.5 dengan Service Layer dan Eloquent ORM
+- Frontend=Inertia.js v3 + React 19 + TypeScript + Tailwind CSS
+- Database=PostgreSQL 18
+- Web server=Nginx reverse proxy ke PHP-FPM 8.5
+- Folder proyek lokal=/home/naval/www/koperasi.test
+- URL lokal=http://koperasi.test
+- Deployment=CloudPanel
+- URL produksi=https://kpri.mtsn3padang.sch.id
+- Locale=id-ID
+- Timezone=Asia/Jakarta
+- Currency=IDR
+
+Aturan kerja:
+1. Kerjakan hanya satu fase pada satu waktu.
+2. Sebelum mengubah kode, tampilkan rencana singkat, file yang akan dibuat/diubah, asumsi, dan risiko.
+3. Jangan mengarang API Laravel/Inertia.js/React. Periksa dokumentasi dan versi paket yang terpasang; pastikan kompatibel dengan Laravel 13, Inertia.js v3, React 19, PostgreSQL 18, dan PHP 8.5.
+4. Terapkan alur dependensi `React/Inertia → Laravel Controller → Service Layer → Eloquent/Query Object → PostgreSQL 18`; jangan menaruh query atau aturan bisnis di halaman React/controller.
+5. Letakkan batas transaksi operasi finansial di Service Layer dan gunakan constructor injection untuk dependency lintas layanan.
+6. Jangan memasukkan `APP_KEY`, kredensial PostgreSQL, token, atau secret ke frontend, log, maupun repository kode.
+7. Terapkan keamanan di Laravel melalui middleware, Policy/Gate, Form Request, query terotorisasi, CSRF, session security, dan constraint PostgreSQL 18; jangan hanya mengandalkan UI React.
+8. Gunakan integer rupiah untuk uang dan fungsi domain murni untuk kalkulasi.
+9. Seluruh transaksi finansial harus memiliki status, nomor referensi unik, audit log, perlindungan idempotensi, dan row locking yang tepat.
+10. Jangan mengedit transaksi posted; gunakan void/reversal.
+11. Buat test untuk kalkulator, state transition, Service Layer, query Eloquent pada PostgreSQL 18, controller/response Inertia.js, komponen React, permission, pencairan, dan alokasi pembayaran.
+12. Setelah setiap fase, jalankan lint, static analysis, test terkait, dan build; laporkan hasil serta pekerjaan tersisa.
+13. Jangan melanjutkan ke fase berikutnya sebelum acceptance criteria fase aktif terpenuhi.
+14. Gunakan Bahasa Indonesia untuk UI dan pesan validasi.
+
+Mulai dari Fase 0. Hentikan setelah Definition of Done Fase 0 terpenuhi dan berikan ringkasan perubahan, cara menjalankan, hasil pemeriksaan, serta keputusan yang masih perlu dibuat.
+```
+## 14. Prompt per fase
+### Prompt Fase 1
+```plain text
+Lanjutkan Fase 1: domain dan skema. Implementasikan migration PostgreSQL, model Eloquent, relasi, index, constraint, Policy/Gate Laravel, PHP enum, DTO, Service Layer per use case, Query Object untuk pembacaan kompleks, kalkulator pinjaman flat, pembulatan rupiah, dan unit/integration test. Tunjukkan ERD, matriks otorisasi, diagram dependensi Controller–Service–Eloquent, serta batas transaksi sebelum coding. Jangan melanjutkan ke Fase 2.
+```
+### Prompt Fase 2
+```plain text
+Lanjutkan Fase 2: autentikasi dan RBAC. Implementasikan login Laravel, bootstrap profil, session security, middleware, Policy/Gate, dan aturan akses. Tambahkan test yang membuktikan anggota A tidak dapat membaca atau mengubah data anggota B. Jangan melanjutkan ke Fase 3.
+```
+### Prompt Fase 3–4
+```plain text
+Lanjutkan Fase 3 dan hanya setelah selesai kerjakan Fase 4. Bangun manajemen anggota/produk lalu modul simpanan. Gunakan transaksi pending-posted-void, idempotency key, bukti transaksi, dan audit log. Jangan menghapus transaksi finansial. Jalankan test sebelum berpindah fase.
+```
+### Prompt Fase 5–6
+```plain text
+Bangun alur pengajuan, review, approval, pencairan, jadwal, dan pembayaran sesuai state machine PRD. Pencairan serta posting pembayaran harus atomik dan idempotent. Test pembayaran sebagian, pembulatan angsuran terakhir, double click, retry, dan pelunasan. Jangan mengubah kontrak aktif ketika produk diubah.
+```
+### Prompt Fase 7–8
+```plain text
+Selesaikan dashboard, ReportService, laporan anggota/pinjaman/simpanan, ekspor CSV, hardening, dan QA. Implementasikan JournalService untuk jurnal otomatis, buku besar, serta neraca saldo; seluruh jurnal wajib berpasangan, idempotent, dapat dibalik, dan dapat ditelusuri ke transaksi sumber. Implementasikan SHUService setelah formula disahkan untuk kalkulasi, alokasi anggota, distribusi, snapshot parameter, approval, serta jurnal. Pastikan angka dashboard, laporan operasional, jurnal, neraca saldo, dan distribusi SHU dapat direkonsiliasi dengan detail. Jalankan lint, static analysis, unit, integration, dan E2E kritis. Laporkan temuan keamanan serta batasan yang belum diselesaikan.
+```
+## 15. Non-functional requirements
+- **Kinerja & Beban:** Halaman utama menampilkan skeleton dalam <1 detik pada kondisi normal; query dibatasi dan tidak memuat seluruh histori tanpa kebutuhan. Sistem mampu menangani beban puncak 50–100 pengguna aktif bersamaan (*concurrent users*) dengan target $p_{95}$ *latency* respon server/API di bawah 500 ms.
+- **Reliability, Backup & Pemulihan (DR):** Retry aman untuk operasi idempotent; tidak ada transaksi ganda akibat double click. *Automated Daily Database Backup* setiap pukul 00:00 WIB dengan retensi 30 hari + WAL Archiving per jam. Target *Recovery Point Objective* (RPO) $\le$ 1 jam dan *Recovery Time Objective* (RTO) $\le$ 2 jam.
+- **Keamanan & Sesi:** Deny-by-default, least privilege, sanitasi audit log, dan tidak ada rahasia di klien. Durasi *Idle Session Timeout* disetel 120 menit (2 jam).
+- **Usability:** Responsif mulai lebar 360px, navigasi keyboard, label form jelas, kontras memadai.
+- **Lokalisasi:** `id-ID`, rupiah tanpa desimal, tanggal Indonesia, zona waktu Asia/Jakarta.
+- **Auditability & Retensi:** Semua perubahan status dan aksi finansial menyimpan aktor serta timestamp. Berkas *Audit Log* disimpan permanen minimal 5 tahun untuk keperluan audit keuangan.
+- **Maintainability:** Fitur dipisahkan per domain; React/Inertia hanya menangani UI dan transport; use case dan batas transaksi berada di Service Layer; Eloquent digunakan untuk persistensi; Query Object menangani pembacaan kompleks; kalkulasi murni tidak bercampur dengan komponen atau query database; PHP dan TypeScript menggunakan strict types serta static analysis.
+## 16. Metrik keberhasilan MVP
+- **Adopsi Digital:** ≥95% transaksi simpanan dan angsuran dicatat secara digital melalui aplikasi setelah 30 hari masa transisi pilot.
+- **Efisiensi Input:** Waktu input transaksi median <2 menit per transaksi.
+- **SLA Pengajuan Pinjaman:** Durasi peninjauan dan keputusan pengajuan pinjaman dari submit hingga approval/rejection maksimal 2 hari kerja (48 jam).
+- **Akurasi Finansial:** Selisih rekonsiliasi antara saldo operasional dan jurnal akuntansi berpasangan adalah mutlak Rp 0 (Zero Variance).
+- **Keamanan Isolasi Data:** 0 insiden kebocoran atau anggota membaca/mengubah data anggota lain.
+- **Kelulusan Testing:** Tingkat keberhasilan pengujian alur E2E kritis = 100% sebelum rilis operasional pilot.
+## 17. Risiko dan mitigasi
+<table header-row="true">
+<tr>
+<td>Risiko</td>
+<td>Mitigasi</td>
+</tr>
+<tr>
+<td>Akses data lintas anggota (IDOR)</td>
+<td>Deny-by-default melalui Policy/Gate dan query scope Laravel, constraint PostgreSQL, serta test isolasi data</td>
+</tr>
+<tr>
+<td>Transaksi ganda / koneksi terputus</td>
+<td>Idempotency key, unique reference (`SIM-YYYYMM-XXXXXX`), transaksi atomik DB + row locking, serta disable tombol UI saat proses</td>
+</tr>
+<tr>
+<td>Salah pembulatan finansial</td>
+<td>Penggunaan tipe data integer rupiah, unit test kalkulasi murni, serta pengalokasian selisih di angsuran bulan terakhir</td>
+</tr>
+<tr>
+<td>Edit / perusakan histori finansial (Human-error kasir)</td>
+<td>Posted data immutable (tidak dihapus fisik). Digunakan prosedur void/reversal bersyarat alasan tertulis & otorisasi khusus Admin</td>
+</tr>
+<tr>
+<td>Perubahan produk mengubah kontrak aktif</td>
+<td>Simpan snapshot parameter produk (suku bunga, tenor, limit) langsung pada entitas `loans` saat pencairan</td>
+</tr>
+<tr>
+<td>Kesalahan migrasi data legacy manual</td>
+<td>Prosedur rekonsiliasi saldo awal dan tanda tangan persetujuan (sign-off) pengurus sebelum impor masal data</td>
+</tr>
+<tr>
+<td>Kerahasiaan data pribadi (PII NIK & Kontak)</td>
+<td>Penyamaran (masking) NIK pada UI publik (`137101******0001`) serta enkripsi saluran HTTPS TLSv1.3</td>
+</tr>
+<tr>
+<td>Query realtime terlalu besar</td>
+<td>Batasi query Eloquent, gunakan filter, pagination/cursor, eager loading terarah, dan index PostgreSQL</td>
+</tr>
+<tr>
+<td>Secret bocor ke frontend</td>
+<td>Simpan `APP_KEY`, kredensial PostgreSQL, dan seluruh secret hanya di environment server `.env`; jangan bagikan melalui Inertia props</td>
+</tr>
+<tr>
+<td>Perbedaan zona waktu</td>
+<td>Simpan ISO datetime, format konsisten `Asia/Jakarta`</td>
+</tr>
+</table>
+## 18. Keputusan produk yang telah ditetapkan sebelum produksi
+- **Metode Perhitungan Bunga Final:** Metode Bunga Flat (10% per tahun) disahkan demi kepraktisan & transparansi anggota.
+- **Hirarki Approval Pinjaman:** Ditetapkan 2-Tier Approval (Peninjauan awal berkas oleh Staff/Kasir → Otorisasi & Keputusan Final oleh Pengurus/Approver).
+- **Aturan Denda & Masa Tenggang:** Masa tenggang (*grace period*) ditetapkan 3 hari kerja setelah tanggal jatuh tempo, dan denda keterlambatan ditetapkan sebesar 0,13% per bulan dari jasa untuk koperasi.
+- **Konfigurasi Diskon Pelunasan Dipercepat:**
+  - Besaran diskon bunga belum berjalan diatur berdasarkan **Nominal Flat Rupiah (Rp)** (Global Koperasi default nominal flat Rp dengan opsi *override* nominal khusus per produk pinjaman).
+  - UI menyediakan tombol pilihan cepat (*preset buttons*: `Gratis Seluruh Bunga Sisa (Rp Max)`, `Rp 500.000`, `Rp 250.000`, `Rp 0 Tanpa Diskon`) serta input kustom nominal Rupiah (Rp).
+  - Tidak dikenakan biaya penalti pelunasan dipercepat. Nominal diskon maksimal dibatasi hingga total bunga belum berjalan ($\le \text{Total Bunga Sisa}$).
+- **Chart of Accounts (COA) Initial Mapping:**
+  - `1010-KAS` : Akun Kas / Bank Operasional Koperasi.
+  - `1020-PIUTANG-PINJAMAN` : Akun Aktiva Piutang Pinjaman Anggota.
+  - `2010-SIMPANAN-ANGGOTA` : Akun Pasiva/Kewajiban Simpanan Pokok, Wajib, & Sukarela.
+  - `4010-PENDAPATAN-BUNGA` : Akun Pendapatan Operasional Bunga Pinjaman.
+  - `4020-PENDAPATAN-DENDA` : Akun Pendapatan Operasional Denda Keterlambatan.
+- **Integritas & Pembalikan Transaksi:** Posted data bersifat *Immutable* (tidak dihapus fisik). Pembalikan dilakukan via *Void/Reversal* ber-alasan tertulis dengan otorisasi khusus Admin.
+- **Formula SHU & Distribusi:** Alokasi SHU disahkan 40% Jasa Modal (Simpanan), 40% Jasa Anggota (Partisipasi Pinjaman), dan 20% Cadangan Koperasi.
+- **Mekanisme Pencairan & Rekonsiliasi:** Pencairan pinjaman dan penerimaan angsuran dicatat atomik berpasangan ke jurnal akuntansi dan saldo operasional kas/bank.
+<callout icon="✅">
+	MVP dianggap siap pilot setelah seluruh alur kritis—anggota aktif, setoran, pengajuan, approval, pencairan, pembayaran sebagian, dan pelunasan—lulus pengujian akses, idempotensi, dan rekonsiliasi
+</callout>
+<empty-block/>
