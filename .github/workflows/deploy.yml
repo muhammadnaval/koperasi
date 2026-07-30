@@ -1,0 +1,96 @@
+name: Deploy to CloudPanel (kpri.mtsn3padang.sch.id)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    name: Run Quality Gates & Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: koperasi_testing
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secretpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, pdo, pdo_pgsql, bcmath, ctype, json, openssl, tokenizer, xml, zip
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Composer Dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Install NPM Dependencies & Build Assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run Pint Code Style Check
+        run: ./vendor/bin/pint --test
+
+      - name: Run Pest / PHPUnit Test Suite
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: koperasi_testing
+          DB_USERNAME: postgres
+          DB_PASSWORD: secretpassword
+        run: php artisan test
+
+  deploy:
+    name: Deploy to Production Server
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Execute Remote SSH Commands (CloudPanel Deployment)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            cd ${{ secrets.TARGET_DIR || '/home/kpri-mtsn3padang/htdocs/kpri.mtsn3padang.sch.id' }}
+            git pull origin main
+            composer install --no-dev --optimize-autoloader --no-interaction
+            npm ci
+            npm run build
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan event:cache
+            php artisan queue:restart
