@@ -1,6 +1,11 @@
-# Koperasi Simpan Pinjam — KPRI MTSn 3 Padang
+# Koperasi Simpan Pinjam — KPRI MTsN 3 Padang
 
 Sistem Informasi Koperasi Simpan Pinjam berbasis Web dibangun menggunakan **Laravel 13**, **PHP 8.5**, **Inertia.js v3**, **React 19**, **TypeScript**, **Tailwind CSS**, **PostgreSQL 18**, dan **Service Layer**.
+
+> 📖 **Panduan Produksi & Deployment CloudPanel:**  
+> Silakan baca [PRODUCTION_GUIDE.md](file:///home/naval/www/koperasi.test/PRODUCTION_GUIDE.md) atau [docs/production-guide.md](file:///home/naval/www/koperasi.test/docs/production-guide.md) untuk petunjuk lengkap instalasi & CI/CD otomatis ke domain [https://kpri.mtsn3padang.sch.id](https://kpri.mtsn3padang.sch.id).
+
+---
 
 ## 🛠️ Stack Teknologi
 
@@ -8,6 +13,7 @@ Sistem Informasi Koperasi Simpan Pinjam berbasis Web dibangun menggunakan **Lara
 - **Frontend**: Inertia.js v3 + React 19 + TypeScript (Strict Mode) + Tailwind CSS v4
 - **Database**: PostgreSQL 18
 - **Web Server**: Nginx Reverse Proxy ke PHP-FPM 8.5
+- **Domain Production**: `https://kpri.mtsn3padang.sch.id`
 - **Domain Development**: `koperasi.test`
 
 ---
